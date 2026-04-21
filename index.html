@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>delayDay — spoiler-free MLB tracker</title>
+<meta name="description" content="Follow along with any MLB game on delay, pitch by pitch, without spoilers.">
+<meta property="og:title" content="delayDay">
+<meta property="og:description" content="Spoiler-free MLB game tracker. Watch on your own schedule.">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23f5f0e8' stroke='%23c8b89a' stroke-width='2'/%3E%3Cpath d='M28 22 Q50 38 72 22' fill='none' stroke='%23cc3333' stroke-width='3.5' stroke-linecap='round'/%3E%3Cpath d='M28 78 Q50 62 72 78' fill='none' stroke='%23cc3333' stroke-width='3.5' stroke-linecap='round'/%3E%3Cpath d='M22 28 Q38 50 22 72' fill='none' stroke='%23cc3333' stroke-width='3.5' stroke-linecap='round'/%3E%3Cpath d='M78 28 Q62 50 78 72' fill='none' stroke='%23cc3333' stroke-width='3.5' stroke-linecap='round'/%3E%3Ccircle cx='50' cy='50' r='3' fill='%231a1a2e'/%3E%3Cline x1='50' y1='50' x2='50' y2='24' stroke='%231a1a2e' stroke-width='4' stroke-linecap='round'/%3E%3Cline x1='50' y1='50' x2='68' y2='56' stroke='%231a1a2e' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0c0f17;
+    --surface: #141820;
+    --surface2: #1c2130;
+    --border: #2a3040;
+    --border2: #3a4458;
+    --text: #e2e8f0;
+    --muted: #8892a4;
+    --dim: #4a5568;
+    --amber: #f59e0b;
+    --green: #4ade80;
+    --blue: #60a5fa;
+    --red: #f87171;
+    --orange: #fb923c;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  .app {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+
+  /* Header */
+  .logo {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    margin-bottom: 0.3rem;
+  }
+  .logo span { color: var(--red); }
+  .tagline { font-size: 13px; color: var(--muted); margin-bottom: 2rem; }
+
+  /* Section label */
+  .label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  /* Game list */
+  .game-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 2rem; }
+
+  .game-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    text-align: left;
+    width: 100%;
+  }
+  .game-card:hover { border-color: var(--border2); background: var(--surface2); }
+
+  .game-teams { font-size: 14px; font-weight: 500; color: var(--text); }
+  .game-teams .at { color: var(--dim); font-weight: 400; }
+  .game-time { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .badge-live { background: rgba(248,113,113,0.15); color: var(--red); }
+  .badge-final { background: rgba(74,85,104,0.3); color: var(--dim); }
+  .badge-sched { background: rgba(74,85,104,0.2); color: var(--dim); }
+
+  /* Game header */
+  .game-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+  .back-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 3px 0;
+    transition: color 0.15s;
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+  .back-btn:hover { color: var(--text); }
+
+  .matchup { font-size: 15px; font-weight: 500; color: var(--text); line-height: 1.4; }
+  .matchup .at { color: var(--dim); font-weight: 400; }
+  .live-info { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .live-dot { color: var(--red); }
+
+  .show-score-btn {
+    background: none;
+    border: none;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.15s;
+  }
+  .show-score-btn:hover { color: var(--muted); }
+
+  /* Snap panel */
+  .snap-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 15px 16px;
+    margin-bottom: 1.25rem;
+  }
+
+  .snap-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+
+  .half-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    overflow: hidden;
+  }
+  .half-btn {
+    padding: 7px 13px;
+    border: none;
+    background: transparent;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .half-btn.active {
+    background: var(--text);
+    color: var(--bg);
+  }
+
+  .inning-ctrl {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .inn-btn {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 18px;
+    cursor: pointer;
+    transition: border-color 0.12s, color 0.12s;
+    line-height: 1;
+  }
+  .inn-btn:hover { border-color: var(--border2); color: var(--text); }
+
+  .inn-num {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 32px;
+    text-align: center;
+  }
+  .inn-label { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+
+  .snap-footer { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+
+  .reveal-btns { display: flex; gap: 7px; flex-wrap: wrap; }
+
+  .reveal-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .reveal-btn:hover { border-color: var(--border2); background: var(--surface2); }
+  .reveal-btn.secondary { color: var(--muted); }
+  .reveal-btn .ahead { color: var(--dim); font-size: 10px; }
+
+  .caught-up { font-family: var(--mono); font-size: 12px; color: #4ade80; }
+
+  /* Partial at-bat card */
+  .partial-now {
+    margin-bottom: 1.25rem;
+  }
+  .partial-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--blue);
+    text-transform: uppercase;
+    margin-bottom: 7px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .partial-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--blue);
+    animation: blink 1.2s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .play-card.is-partial {
+    border-color: rgba(96,165,250,0.3);
+    background: rgba(96,165,250,0.04);
+  }
+  .in-ab { font-family: var(--mono); font-size: 11px; color: var(--blue); }
+
+  /* Feed */
+  .feed { }
+
+  .inning-group { margin-bottom: 1.5rem; }
+  .inning-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-bottom: 7px;
+  }
+
+  .plays { display: flex; flex-direction: column; gap: 7px; }
+
+  .play-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 14px;
+  }
+
+  .play-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 3px;
+  }
+  .batter { font-size: 13px; font-weight: 500; color: var(--text); }
+  .event { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+  .pitcher-line { font-size: 11px; color: var(--dim); margin-bottom: 4px; }
+  .desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .rbi-tag { margin-top: 5px; font-family: var(--mono); font-size: 11px; color: var(--amber); }
+
+  /* Pitch sequence */
+  .pitch-seq {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top: 1px solid var(--border);
+  }
+
+  .pitch-pill {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 4px 7px;
+    border-radius: 5px;
+    font-family: var(--mono);
+    border: 1px solid transparent;
+    cursor: default;
+    user-select: none;
+    position: relative;
+    min-width: 36px;
+  }
+  .pitch-type { font-size: 11px; font-weight: 600; line-height: 1.2; }
+  .pitch-velo { font-size: 10px; line-height: 1.1; opacity: 0.8; }
+
+  /* call colors */
+  .p-ball    { border-color: rgba(96,165,250,0.35); color: #60a5fa; background: rgba(96,165,250,0.07); }
+  .p-ck      { border-color: rgba(248,113,113,0.5); color: #f87171; background: rgba(248,113,113,0.12); }
+  .p-sk      { border-color: #f87171; color: #f87171; background: rgba(248,113,113,0.25); }
+  .p-foul    { border-color: rgba(251,146,60,0.4); color: #fb923c; background: rgba(251,146,60,0.08); }
+  .p-inplay  { border-color: rgba(74,222,128,0.4); color: #4ade80; background: rgba(74,222,128,0.08); }
+  .p-hbp     { border-color: rgba(167,139,250,0.5); color: #a78bfa; background: rgba(167,139,250,0.1); }
+  .p-last    { border-width: 2px; }
+
+  /* Pitch legend */
+  .pitch-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 1.25rem;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 4px; color: var(--dim); }
+  .legend-dot {
+    width: 8px; height: 8px; border-radius: 2px; border: 1px solid;
+    flex-shrink: 0;
+  }
+
+  /* Two-column tracker layout */
+  .tracker-grid {
+    display: grid;
+    grid-template-columns: 210px 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+  @media (max-width: 580px) {
+    .tracker-grid { grid-template-columns: 1fr; }
+    .lineup-panel { order: 2; position: static !important; }
+    .right-col { order: 1; }
+  }
+
+  /* Lineup panel */
+  .lineup-panel {
+    position: sticky;
+    top: 16px;
+    z-index: 2;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-size: 12px;
+  }
+  .lineup-header {
+    padding: 9px 12px 7px;
+    border-bottom: 1px solid var(--border);
+  }
+  .lineup-team {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .lineup-subtitle {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.05em;
+    margin-top: 1px;
+  }
+  .lineup-rhe {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .rhe-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 7px 4px;
+    border-right: 1px solid var(--border);
+  }
+  .rhe-item:last-child { border-right: none; }
+  .rhe-val { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--text); line-height: 1; }
+  .rhe-lbl { font-family: var(--mono); font-size: 9px; color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; }
+
+  .lineup-row {
+    display: grid;
+    grid-template-columns: 14px 22px 1fr auto;
+    gap: 0 5px;
+    align-items: center;
+    padding: 5px 10px;
+    border-bottom: 1px solid rgba(42,48,64,0.6);
+    transition: background 0.1s;
+  }
+  .lineup-row:last-child { border-bottom: none; }
+  .lineup-row.current {
+    background: rgba(96,165,250,0.07);
+    border-left: 2px solid #60a5fa;
+    padding-left: 8px;
+  }
+  .lineup-row.ondeck { opacity: 0.65; }
+  .lineup-row.upcoming { opacity: 0.35; }
+
+  .lr-num { font-family: var(--mono); font-size: 10px; color: var(--dim); text-align: right; }
+  .lr-pos { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .lr-name { color: var(--text); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lr-name.is-current { color: #60a5fa; font-weight: 500; }
+  .lr-stat { font-family: var(--mono); font-size: 10px; color: var(--dim); white-space: nowrap; }
+  .lr-stat.has-hit { color: var(--green); }
+  .lr-stat.has-hr  { color: var(--amber); }
+
+  /* Pitch tap tooltip */
+  .pitch-tooltip {
+    display: none;
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    z-index: 300;
+    max-width: 210px;
+    pointer-events: none;
+  }
+  .pitch-tooltip.visible { display: block; }
+  .pt-name { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .pt-velo { font-family: var(--mono); font-size: 12px; color: var(--amber); }
+  .pt-call { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .pt-count { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-top: 4px; }
+
+  /* Refresh indicator */
+  .refresh-bar {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+  }
+
+  /* Linescore */
+  .linescore-wrap { margin-bottom: 1.25rem; overflow-x: auto; }
+  .linescore {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .linescore th, .linescore td {
+    padding: 6px 8px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .linescore th { color: var(--dim); font-weight: 400; font-size: 10px; letter-spacing: 0.05em; }
+  .linescore td { color: var(--text); }
+  .linescore .team-cell { text-align: left; font-weight: 600; padding-left: 0; }
+  .linescore .rhe { color: var(--amber); font-weight: 600; }
+  .linescore .hidden-cell { color: var(--dim); }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="pitch-tooltip" id="pitch-tooltip"></div>
+<div class="refresh-bar" id="refresh-bar" style="display:none">⟳ auto-refresh on</div>
+
+<script>
+const MLB = 'https://statsapi.mlb.com/api/v1';
+const LIVE = 'https://statsapi.mlb.com/api/v1.1';
+
+let state = {
+  view: 'games',
+  viewDate: 'today',
+  games: [], gamesLoading: true,
+  game: null,
+  allPlays: [], playsLoading: false,
+  liveData: null, boxscore: null,
+  snapInning: 1, snapHalf: 'top',
+  revealCount: 0, revealPitches: 0, partialActive: false, showScore: false,
+  refreshIv: null,
+};
+
+function getTodayStr() {
+  return new Date().toLocaleDateString('en-CA');
+}
+
+function getYesterdayStr() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toLocaleDateString('en-CA');
+}
+
+function getDateStr() {
+  return state.viewDate === 'yesterday' ? getYesterdayStr() : getTodayStr();
+}
+
+function ord(n) {
+  const s = ['th','st','nd','rd'], v = n % 100;
+  return n + (s[(v-20)%10] || s[v] || s[0]);
+}
+
+function beforeSnap(play, si, sh) {
+  const { inning, halfInning } = play.about;
+  if (inning < si) return true;
+  if (inning === si && halfInning === 'top' && sh === 'bottom') return true;
+  return false;
+}
+
+function eventColor(ev = '') {
+  const e = ev.toLowerCase();
+  if (e.includes('home run')) return 'var(--amber)';
+  if (['single','double','triple'].some(x => e.includes(x))) return 'var(--green)';
+  if (e.includes('walk') || e.includes('hit by pitch') || e.includes('intentional')) return 'var(--blue)';
+  if (e.includes('strikeout')) return 'var(--red)';
+  if (e.includes('out') || e.includes('grounded') || e.includes('fly') || e.includes('pop') || e.includes('lined')) return '#f97316';
+  if (e.includes('error')) return 'var(--orange)';
+  return 'var(--muted)';
+}
+
+async function loadGames() {
+  try {
+    const r = await fetch(`${MLB}/schedule?sportId=1&date=${getDateStr()}&hydrate=linescore,teams`);
+    const d = await r.json();
+    state.games = (d.dates?.[0]?.games || []).filter(g => {
+      const s = g.status?.detailedState || '';
+      return s !== 'Postponed' && s !== 'Cancelled';
+    });
+  } catch(e) {
+    console.error(e);
+  }
+  state.gamesLoading = false;
+  render();
+}
+
+async function loadFeed() {
+  if (!state.game) return;
+  try {
+    const r = await fetch(`${LIVE}/game/${state.game.gamePk}/feed/live`);
+    const d = await r.json();
+    state.allPlays = d.liveData?.plays?.allPlays || [];
+    state.boxscore = d.liveData?.boxscore?.teams || null;
+    const ls = d.liveData?.linescore;
+    if (ls) {
+      state.liveData = {
+        inning: ls.currentInning || 1,
+        half: ls.inningHalf?.toLowerCase().includes('top') ? 'top' : 'bottom',
+        awayRuns: ls.teams?.away?.runs ?? null,
+        homeRuns: ls.teams?.home?.runs ?? null,
+        innings: ls.innings || [],
+        status: d.gameData?.status?.detailedState || '',
+        awayAbbr: d.gameData?.teams?.away?.abbreviation || state.game?.teams?.away?.team?.abbreviation || '',
+        homeAbbr: d.gameData?.teams?.home?.abbreviation || state.game?.teams?.home?.team?.abbreviation || '',
+      };
+    }
+  } catch(e) {}
+  state.playsLoading = false;
+  render();
+}
+
+function selectGame(g) {
+  state.game = g;
+  state.view = 'tracker';
+  state.allPlays = [];
+  state.liveData = null;
+  state.boxscore = null;
+  state.revealCount = 0;
+  state.revealPitches = 0;
+  state.partialActive = false;
+  state.snapInning = 1;
+  state.snapHalf = 'top';
+  state.showScore = false;
+  state.playsLoading = true;
+  if (state.refreshIv) clearInterval(state.refreshIv);
+  render();
+  loadFeed();
+  state.refreshIv = setInterval(() => { loadFeed(); }, 30000);
+  document.getElementById('refresh-bar').style.display = 'block';
+}
+
+function backToGames() {
+  if (state.refreshIv) clearInterval(state.refreshIv);
+  state.view = 'games';
+  state.game = null;
+  state.allPlays = [];
+  state.liveData = null;
+  state.boxscore = null;
+  document.getElementById('refresh-bar').style.display = 'none';
+  render();
+}
+
+function setSnap(inning, half) {
+  state.snapInning = inning;
+  state.snapHalf = half;
+  state.revealCount = 0;
+  state.revealPitches = 0;
+  state.partialActive = false;
+  render();
+}
+
+// --- Render helpers ---
+function h(tag, attrs, ...children) {
+  const el = document.createElement(tag);
+  if (attrs) {
+    Object.entries(attrs).forEach(([k, v]) => {
+      if (k === 'class') el.className = v;
+      else if (k === 'style') el.setAttribute('style', v);
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2).toLowerCase(), v);
+      else el.setAttribute(k, v);
+    });
+  }
+  children.flat(2).forEach(c => {
+    if (c == null || c === false) return;
+    el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  });
+  return el;
+}
+
+function renderGames() {
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+
+  app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
+    h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.0')
+  );
+
+  const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
+    h('button', {
+      class: 'reveal-btn' + (state.viewDate === 'today' ? '' : ' secondary'),
+      style: state.viewDate === 'today' ? 'border-color:var(--border2);background:var(--surface2)' : '',
+      onClick: () => { if (state.viewDate !== 'today') { state.viewDate = 'today'; state.games = []; state.gamesLoading = true; render(); loadGames(); } }
+    }, 'today'),
+    h('button', {
+      class: 'reveal-btn' + (state.viewDate === 'yesterday' ? '' : ' secondary'),
+      style: state.viewDate === 'yesterday' ? 'border-color:var(--border2);background:var(--surface2)' : '',
+      onClick: () => { if (state.viewDate !== 'yesterday') { state.viewDate = 'yesterday'; state.games = []; state.gamesLoading = true; render(); loadGames(); } }
+    }, 'yesterday')
+  );
+  app.append(dateToggle);
+
+  app.append(h('div', { class: 'label' }, `${getDateStr()} · games`));
+
+  if (state.gamesLoading) {
+    app.append(h('div', { class: 'status-msg' }, 'loading...'));
+    return;
+  }
+  if (!state.games.length) {
+    app.append(h('div', { class: 'status-msg' }, 'No games found for today.'));
+    return;
+  }
+
+  const list = h('div', { class: 'game-list' });
+  state.games.forEach(g => {
+    const status = g.status?.detailedState || '';
+    const isLive = status === 'In Progress';
+    const isFinal = status.toLowerCase().includes('final');
+    const time = new Date(g.gameDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+    const card = h('button', { class: 'game-card', onClick: () => selectGame(g) },
+      h('div', {},
+        h('div', { class: 'game-teams' },
+          g.teams.away.team.name,
+          h('span', { class: 'at' }, ' at '),
+          g.teams.home.team.name
+        ),
+        h('div', { class: 'game-time' }, time)
+      ),
+      h('div', { class: `badge ${isLive ? 'badge-live' : isFinal ? 'badge-final' : 'badge-sched'}` },
+        isLive ? '● live' : isFinal ? 'final' : 'scheduled'
+      )
+    );
+    list.append(card);
+  });
+  app.append(list);
+}
+
+function computeBatterStats(plays) {
+  const stats = {};
+  plays.forEach(play => {
+    const id = play.matchup?.batter?.id;
+    if (!id) return;
+    if (!stats[id]) stats[id] = { ab: 0, h: 0, hr: 0, rbi: 0 };
+    const ev = (play.result?.event || '').toLowerCase();
+    const isHit  = ['single','double','triple','home run'].some(x => ev.includes(x));
+    const isWalk = ev.includes('walk') || ev.includes('hit by pitch');
+    const isSac  = ev.includes('sac');
+    if (!isWalk && !isSac) stats[id].ab++;
+    if (isHit) stats[id].h++;
+    if (ev.includes('home run')) stats[id].hr++;
+    stats[id].rbi += play.result?.rbi || 0;
+  });
+  return stats;
+}
+
+function renderLineupPanel(visible, si, sh, partialBatterId, partialPlay) {
+  if (!state.boxscore) {
+    return h('div', { class: 'lineup-panel' },
+      h('div', { class: 'lineup-header' },
+        h('div', { class: 'lineup-team' }, '—'),
+        h('div', { class: 'lineup-subtitle' }, 'loading...')
+      )
+    );
+  }
+
+  const teamKey = sh === 'top' ? 'away' : 'home';
+  const teamObj = sh === 'top' ? state.game.teams.away : state.game.teams.home;
+  const teamData = state.boxscore[teamKey];
+  if (!teamData) return h('div', { class: 'lineup-panel' });
+
+  const battingOrder = teamData.battingOrder || [];
+  const players = teamData.players || {};
+  const halfStr = sh === 'top' ? 'top' : 'bottom';
+
+  // All visible plays where this team batted
+  const allBattingPlays = visible.filter(p => p.about.halfInning === halfStr);
+  const gameStats = computeBatterStats(allBattingPlays);
+
+  // Seed slotMap from ALL players with a battingOrder field (covers subs too)
+  const slotMap = {};
+  Object.values(players).forEach(p => {
+    if (!p?.battingOrder) return;
+    const slot = Math.floor(parseInt(p.battingOrder) / 100);
+    // Only set if not already set, so starters take precedence initially
+    if (!slotMap[slot]) slotMap[slot] = p;
+  });
+  // Override each slot with the most recent actual batter from play data
+  allBattingPlays.forEach(play => {
+    const id = play.matchup?.batter?.id;
+    if (!id) return;
+    const p = players[`ID${id}`];
+    if (!p?.battingOrder) return;
+    const slot = Math.floor(parseInt(p.battingOrder) / 100);
+    slotMap[slot] = p;
+  });
+  // Also slot in the current partial batter if they're in this team's players
+  if (partialBatterId) {
+    const pp = players[`ID${partialBatterId}`];
+    if (pp?.battingOrder) {
+      const slot = Math.floor(parseInt(pp.battingOrder) / 100);
+      slotMap[slot] = pp;
+    }
+  }
+  const currentLineup = Object.keys(slotMap)
+    .map(Number).sort((a,b) => a - b)
+    .map(slot => ({ slot, player: slotMap[slot] }));
+
+  // Who batted and who was last up (completed at-bats)
+  const battedIds = new Set();
+  let lastBatterId = null;
+  allBattingPlays.forEach(p => {
+    const id = p.matchup?.batter?.id;
+    if (id) { battedIds.add(id); lastBatterId = id; }
+  });
+
+  // Use partialBatterId if they belong to this team's players
+  const currentBatterId = (partialBatterId && players[`ID${partialBatterId}`])
+    ? partialBatterId
+    : lastBatterId;
+
+  // On deck: next in current lineup order after current batter
+  let onDeckId = null;
+  if (currentLineup.length) {
+    const ids = currentLineup.map(e => e.player.person?.id);
+    const ref = currentBatterId;
+    if (ref) {
+      const idx = ids.indexOf(ref);
+      onDeckId = idx >= 0 ? ids[(idx + 1) % ids.length] : ids[0];
+    } else {
+      onDeckId = ids[0];
+    }
+  }
+
+  // Runs: sum from linescore for fully revealed innings
+  let runs = 0, hits = 0;
+  if (state.liveData?.innings) {
+    state.liveData.innings.forEach(inn => {
+      if (inn.num >= si) return;
+      const d = sh === 'top' ? inn.away : inn.home;
+      if (d?.runs !== undefined) runs += d.runs;
+    });
+  }
+  // Add runs from current half-inning via scoring plays
+  allBattingPlays.filter(p => p.about.inning === si).forEach(p => {
+    runs += p.result?.runs || 0;
+  });
+  hits = allBattingPlays.filter(p =>
+    ['Single','Double','Triple','Home Run'].includes(p.result?.event)
+  ).length;
+
+  const panel = h('div', { class: 'lineup-panel' });
+
+  panel.append(
+    h('div', { class: 'lineup-header' },
+      h('div', { class: 'lineup-team' }, teamObj.team.abbreviation),
+      h('div', { class: 'lineup-subtitle' }, sh === 'top' ? '▲ batting' : '▼ batting')
+    ),
+    h('div', { class: 'lineup-rhe' },
+      h('div', { class: 'rhe-item' }, h('div', { class: 'rhe-val' }, String(runs)), h('div', { class: 'rhe-lbl' }, 'R')),
+      h('div', { class: 'rhe-item' }, h('div', { class: 'rhe-val' }, String(hits)), h('div', { class: 'rhe-lbl' }, 'H')),
+      h('div', { class: 'rhe-item' }, h('div', { class: 'rhe-val' }, String(allBattingPlays.filter(p => !['Walk','Intent Walk','Hit By Pitch'].some(x => p.result?.event?.includes(x))).length)), h('div', { class: 'rhe-lbl' }, 'AB'))
+    )
+  );
+
+  currentLineup.forEach(({ slot, player }) => {
+    const id = player.person?.id;
+    if (!player) return;
+
+    const fullName = player.person?.fullName || '';
+    const parts = fullName.split(' ');
+    const lastName = parts.length > 1 ? parts.slice(1).join(' ') : fullName;
+    const pos = player.allPositions?.[0]?.abbreviation || player.position?.abbreviation || '—';
+
+    const isCurrent = id === currentBatterId;
+    const isOnDeck  = id === onDeckId && !isCurrent;
+    const hasBatted = battedIds.has(id) && !isCurrent;
+
+    let rowClass = 'lineup-row';
+    if (isCurrent)      rowClass += ' current';
+    else if (isOnDeck)  rowClass += ' ondeck';
+    else if (!hasBatted) rowClass += ' upcoming';
+
+    const s = gameStats[id] || { ab: 0, h: 0, hr: 0, rbi: 0 };
+    const statStr = s.ab > 0 ? `${s.h}/${s.ab}` : '—';
+    let statCls = 'lr-stat';
+    if (s.hr > 0) statCls += ' has-hr';
+    else if (s.h > 0) statCls += ' has-hit';
+
+    const extras = [];
+    if (s.hr > 0) extras.push(`${s.hr}HR`);
+    if (s.rbi > 0) extras.push(`${s.rbi}RBI`);
+    const tip = [fullName, statStr, ...extras].join(' · ');
+
+    panel.append(h('div', { class: rowClass },
+      h('span', { class: 'lr-num' }, String(slot)),
+      h('span', { class: 'lr-pos' }, pos),
+      h('span', { class: `lr-name${isCurrent ? ' is-current' : ''}`, title: tip }, lastName),
+      h('span', { class: statCls }, statStr)
+    ));
+  });
+
+  return panel;
+}
+
+function getAhead() {
+  return state.allPlays.filter(p => !beforeSnap(p, state.snapInning, state.snapHalf));
+}
+
+function nextPitch() {
+  const ahead = getAhead();
+  if (ahead.length <= state.revealCount) return;
+  const partial = ahead[state.revealCount];
+  const pitches = (partial.playEvents || []).filter(e => e.isPitch);
+  if (!state.partialActive) {
+    // First press: just surface the batter, no pitches yet
+    state.partialActive = true;
+  } else if (state.revealPitches < pitches.length) {
+    state.revealPitches++;
+  } else {
+    // All pitches shown — immediately surface next batter
+    state.revealCount++;
+    state.revealPitches = 0;
+    state.partialActive = ahead.length > state.revealCount;
+  }
+  render();
+}
+
+function nextBatter() {
+  const ahead = getAhead();
+  if (!state.partialActive) {
+    // No partial yet — just surface the next batter, same as first nextPitch press
+    if (ahead.length <= state.revealCount) return;
+    state.partialActive = true;
+  } else {
+    // Complete the current partial, then surface the next batter
+    if (ahead.length <= state.revealCount) return;
+    state.revealCount++;
+    state.revealPitches = 0;
+    state.partialActive = ahead.length > state.revealCount;
+  }
+  render();
+}
+
+function getBatterInfo(batterId, halfInning) {
+  if (!state.boxscore || !batterId) return { pos: '', ops: '' };
+  const teamKey = halfInning === 'top' ? 'away' : 'home';
+  const player = state.boxscore[teamKey]?.players?.[`ID${batterId}`];
+  const pos = player?.position?.abbreviation || '';
+  const avg = player?.seasonStats?.batting?.avg ?? '';
+  const ops = player?.seasonStats?.batting?.ops ?? '';
+  return { pos, avg, ops };
+}
+
+function getPitcherERA(pitcherId, halfInning) {
+  if (!state.boxscore || !pitcherId) return '';
+  // Pitcher is on the fielding team — opposite of batting half
+  const teamKey = halfInning === 'top' ? 'home' : 'away';
+  const player = state.boxscore[teamKey]?.players?.[`ID${pitcherId}`];
+  return player?.seasonStats?.pitching?.era ?? '';
+}
+
+function renderPartialCard(play, numPitches) {
+  const allPitches = (play.playEvents || []).filter(e => e.isPitch);
+  const shown = allPitches.slice(0, numPitches);
+  const isComplete = numPitches >= allPitches.length;
+
+  const lastShown = shown[shown.length - 1];
+  const countStr = lastShown?.count ? `${lastShown.count.balls}-${lastShown.count.strikes}` : '0-0';
+  const era = getPitcherERA(play.matchup?.pitcher?.id, play.about?.halfInning);
+  const pitchInfo = play.matchup?.pitcher?.fullName
+    ? `vs ${play.matchup.pitcher.fullName}` + (era ? `  ·  ERA ${era}` : '')
+    : null;
+
+  const pitchRow = shown.length > 0 ? (() => {
+    const row = h('div', { class: 'pitch-seq' });
+    shown.forEach((pitch, i) => {
+      const isLast = i === shown.length - 1;
+      const code = pitch.details?.call?.code || 'B';
+      const typeCode = pitch.details?.type?.code || '—';
+      const typeName = pitch.details?.type?.description || typeCode;
+      const velo = pitch.pitchData?.startSpeed ? Math.round(pitch.pitchData.startSpeed) : null;
+      const callDesc = pitch.details?.description || '';
+      const cnt = pitch.count ? `${pitch.count.balls}-${pitch.count.strikes}` : '';
+      const tip = `${typeName}${velo ? ' · ' + velo + ' mph' : ''}\n${callDesc}${cnt ? '\ncount: ' + cnt : ''}`;
+      row.append(h('div', { class: pitchClass(code, isLast), title: tip, onClick: (e) => showPitchTooltip(e, typeName, velo, callDesc, cnt) },
+        h('span', { class: 'pitch-type' }, displayPitchCode(typeCode)),
+        velo ? h('span', { class: 'pitch-velo' }, String(velo)) : null
+      ));
+    });
+    return row;
+  })() : null;
+
+  return h('div', { class: 'play-card is-partial' },
+    h('div', { class: 'play-top' },
+      h('span', { class: 'batter' },
+        play.matchup?.batter?.fullName || '',
+        (() => { const { pos, avg, ops } = getBatterInfo(play.matchup?.batter?.id, play.about?.halfInning); return (pos || avg || ops) ? h('span', { class: 'pitcher-line', style: 'margin-left:6px' }, [pos, avg ? 'AVG ' + avg : '', ops ? 'OPS ' + ops : ''].filter(Boolean).join('  ·  ')) : null; })()
+      ),
+      isComplete
+        ? h('span', { class: 'event', style: `color:${eventColor(play.result?.event)}` }, play.result?.event || '')
+        : h('span', { class: 'in-ab' }, countStr)
+    ),
+    pitchInfo ? h('div', { class: 'pitcher-line' }, pitchInfo) : null,
+    isComplete ? h('div', { class: 'desc' }, play.result?.description || '') : null,
+    isComplete && (play.result?.rbi > 0 || play.about?.isScoringPlay)
+      ? h('div', { class: 'rbi-tag' }, play.result?.rbi > 0 ? `${play.result.rbi} rbi` : 'scoring play')
+      : null,
+    pitchRow
+  );
+}
+
+function renderTracker() {
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+
+  const { snapInning: si, snapHalf: sh, allPlays, revealCount, revealPitches, liveData, playsLoading, showScore } = state;
+
+  const base    = allPlays.filter(p => beforeSnap(p, si, sh));
+  const ahead   = allPlays.filter(p => !beforeSnap(p, si, sh));
+  const visible = [...base, ...ahead.slice(0, revealCount)];
+
+  // Partial at-bat (currently being pitched through)
+  const partialPlay   = ahead[revealCount] || null;
+  const partialPitchData = partialPlay ? (partialPlay.playEvents || []).filter(e => e.isPitch) : [];
+  const isPartialComplete = revealPitches >= partialPitchData.length;
+
+  // What's hidden: at-bats after the current partial
+  const batchesAhead = ahead.length - revealCount - (partialPlay ? 1 : 0);
+  const canAdvance   = partialPlay !== null;
+  const canNextPitch = canAdvance && (!isPartialComplete || batchesAhead > 0 || revealPitches < partialPitchData.length);
+
+  // Use the partial play's actual half-inning to drive the lineup panel,
+  // so it switches teams automatically as you advance past the snap point.
+  // Also check the last completed visible play for when using "next batter" only.
+  const lastVisiblePlay = visible[visible.length - 1];
+  const effectiveHalf = (partialPlay && state.partialActive)
+    ? partialPlay.about.halfInning
+    : lastVisiblePlay
+      ? lastVisiblePlay.about.halfInning
+      : sh;
+
+  // Pass partial batter to lineup panel so it shows as current
+  const partialBatterId = (partialPlay && state.partialActive) ? partialPlay.matchup?.batter?.id : null;
+
+  // Header
+  const liveInfoKids = [];
+  if (liveData) {
+    liveInfoKids.push(liveData.status === 'In Progress'
+      ? h('span', { class: 'live-dot' }, `● ${liveData.half === 'top' ? '▲' : '▼'}${liveData.inning}`)
+      : h('span', {}, liveData.status.toLowerCase())
+    );
+    if (!showScore) {
+      liveInfoKids.push(h('button', { class: 'show-score-btn', onClick: () => { state.showScore = true; render(); } }, 'show score'));
+    } else if (liveData.awayRuns !== null) {
+      liveInfoKids.push(h('span', {}, `${liveData.awayAbbr} ${liveData.awayRuns} · ${liveData.homeAbbr} ${liveData.homeRuns}`));
+      liveInfoKids.push(h('button', { class: 'show-score-btn', onClick: () => { state.showScore = false; render(); } }, 'hide score'));
+    }
+  }
+
+  app.append(h('div', { class: 'game-header' },
+    h('button', { class: 'back-btn', onClick: backToGames }, '← games'),
+    h('div', {},
+      h('div', { class: 'matchup' },
+        state.game.teams.away.team.name,
+        h('span', { class: 'at' }, ' @ '),
+        state.game.teams.home.team.name
+      ),
+      liveData ? h('div', { class: 'live-info' }, ...liveInfoKids) : null
+    )
+  ));
+
+  // Linescore (full width)
+  if (liveData) {
+    const revInnings = liveData.innings.length > 0
+      ? liveData.innings.filter(inn =>
+          inn.num < si || (inn.num === si && sh === 'bottom' && inn.home !== undefined)
+        )
+      : [];
+
+    app.append(h('div', { class: 'linescore-wrap' },
+      h('table', { class: 'linescore' },
+        h('thead', {}, h('tr', {},
+          h('th', { class: 'team-cell' }, ''),
+          ...revInnings.map(i => h('th', {}, String(i.num))),
+          h('th', { class: 'rhe' }, 'R'), h('th', { class: 'rhe' }, 'H'), h('th', {}, 'E')
+        )),
+        h('tbody', {},
+          h('tr', {},
+            h('td', { class: 'team-cell' }, liveData.awayAbbr),
+            ...revInnings.map(i => h('td', {}, i.away?.runs !== undefined ? String(i.away.runs) : '-')),
+            h('td', { class: 'rhe' }, String(revInnings.reduce((s,i) => s+(i.away?.runs||0),0))),
+            h('td', {}, String(revInnings.reduce((s,i) => s+(i.away?.hits||0),0))),
+            h('td', {}, String(revInnings.reduce((s,i) => s+(i.away?.errors||0),0)))
+          ),
+          h('tr', {},
+            h('td', { class: 'team-cell' }, liveData.homeAbbr),
+            ...revInnings.map(i => i.home?.runs !== undefined ? h('td', {}, String(i.home.runs)) : h('td', { class: 'hidden-cell' }, '·')),
+            h('td', { class: 'rhe' }, String(revInnings.reduce((s,i) => s+(i.home?.runs||0),0))),
+            h('td', {}, String(revInnings.reduce((s,i) => s+(i.home?.hits||0),0))),
+            h('td', {}, String(revInnings.reduce((s,i) => s+(i.home?.errors||0),0)))
+          )
+        )
+      )
+    ));
+  }
+
+  // Two-column grid
+  const grid = h('div', { class: 'tracker-grid' });
+  grid.append(renderLineupPanel(visible, si, effectiveHalf, partialBatterId, partialPlay));
+
+  const right = h('div', { class: 'right-col' });
+
+  // Snap panel + buttons
+  right.append(h('div', { class: 'snap-panel' },
+    h('div', { class: 'label' }, "i'm currently watching"),
+    h('div', { class: 'snap-controls' },
+      h('div', { class: 'half-toggle' },
+        h('button', { class: `half-btn${sh === 'top' ? ' active' : ''}`, onClick: () => setSnap(si, 'top') }, '▲ top'),
+        h('button', { class: `half-btn${sh === 'bottom' ? ' active' : ''}`, onClick: () => setSnap(si, 'bottom') }, '▼ bot')
+      ),
+      h('div', { class: 'inning-ctrl' },
+        h('button', { class: 'inn-btn', onClick: () => setSnap(Math.max(1, si - 1), sh) }, '−'),
+        h('div', { class: 'inn-num' }, String(si)),
+        h('button', { class: 'inn-btn', onClick: () => setSnap(si + 1, sh) }, '+')
+      ),
+      h('span', { class: 'inn-label' }, `${ord(si)} inning`)
+    ),
+    h('div', { class: 'snap-footer' },
+      canAdvance
+        ? h('div', { class: 'reveal-btns' },
+            h('button', { class: 'reveal-btn secondary', onClick: nextPitch },
+              '⚾ next pitch'
+            ),
+            h('button', { class: 'reveal-btn', onClick: nextBatter },
+              'next batter',
+              batchesAhead > 0
+                ? h('span', { class: 'ahead' }, `${batchesAhead} ahead`)
+                : null
+            )
+          )
+        : visible.length > 0 || (partialPlay && isPartialComplete)
+          ? h('div', { class: 'caught-up' }, '✓ caught up to this point')
+          : null
+    )
+  ));
+
+  // Feed
+  const feed = h('div', { class: 'feed' });
+
+  if (playsLoading) {
+    feed.append(h('div', { class: 'status-msg' }, 'loading game data...'));
+  } else if (!allPlays.length) {
+    feed.append(h('div', { class: 'status-msg' }, 'No play data yet — game may not have started.'));
+  } else if (!visible.length && !partialPlay) {
+    feed.append(h('div', { class: 'status-msg' }, 'Nothing to show yet — use the buttons above to start revealing plays.'));
+  } else {
+    // Partial at-bat floats at the top
+    if (partialPlay && state.partialActive) {
+      feed.append(
+        h('div', { class: 'partial-now' },
+          h('div', { class: 'partial-label' },
+            h('div', { class: 'partial-dot' }),
+            `${partialPlay.about.halfInning === 'top' ? '▲' : '▼'} ${ord(partialPlay.about.inning)} inning · now`
+          ),
+          renderPartialCard(partialPlay, revealPitches)
+        )
+      );
+    }
+
+    // Completed plays grouped by half-inning, newest first
+    if (visible.length > 0) {
+      const groups = [];
+      let cur = null;
+      visible.forEach(p => {
+        const key = `${p.about.inning}-${p.about.halfInning}`;
+        if (!cur || cur.key !== key) { cur = { key, inning: p.about.inning, half: p.about.halfInning, plays: [] }; groups.push(cur); }
+        cur.plays.push(p);
+      });
+      groups.reverse();
+
+      feed.append(renderLegend());
+      groups.forEach(g => {
+        const grpDiv = h('div', { class: 'inning-group' },
+          h('div', { class: 'inning-label' }, `${g.half === 'top' ? '▲' : '▼'} ${ord(g.inning)} inning`)
+        );
+        const playsDiv = h('div', { class: 'plays' });
+        [...g.plays].reverse().forEach(play => {
+          const isScoringPlay = play.about?.isScoringPlay || play.result?.rbi > 0;
+          const pitches = (play.playEvents || []).filter(e => e.isPitch);
+          const lastPitch = pitches[pitches.length - 1];
+          const finalCount = lastPitch?.count ? `${lastPitch.count.balls}-${lastPitch.count.strikes}` : null;
+          playsDiv.append(h('div', { class: 'play-card' },
+            h('div', { class: 'play-top' },
+              h('span', { class: 'batter' },
+                play.matchup?.batter?.fullName || '',
+                (() => { const { pos, avg, ops } = getBatterInfo(play.matchup?.batter?.id, play.about?.halfInning); return (pos || avg || ops) ? h('span', { class: 'pitcher-line', style: 'margin-left:6px' }, [pos, avg ? 'AVG ' + avg : '', ops ? 'OPS ' + ops : ''].filter(Boolean).join('  ·  ')) : null; })()
+              ),
+              h('span', { class: 'event', style: `color:${eventColor(play.result?.event)}` }, play.result?.event || '')
+            ),
+            play.matchup?.pitcher?.fullName
+              ? h('div', { class: 'pitcher-line' },
+                  `vs ${play.matchup.pitcher.fullName}` +
+                  (() => { const era = getPitcherERA(play.matchup.pitcher.id, play.about?.halfInning); return era ? `  ·  ERA ${era}` : ''; })() +
+                  (finalCount ? `  ·  ${finalCount} count` : ''))
+              : null,
+            h('div', { class: 'desc' }, play.result?.description || ''),
+            isScoringPlay ? h('div', { class: 'rbi-tag' }, play.result?.rbi > 0 ? `${play.result.rbi} rbi` : 'scoring play') : null,
+            renderPitches(play)
+          ));
+        });
+        grpDiv.append(playsDiv);
+        feed.append(grpDiv);
+      });
+    }
+  }
+
+  right.append(feed);
+  grid.append(right);
+  app.append(grid);
+}
+
+function showPitchTooltip(e, typeName, velo, callDesc, count) {
+  e.stopPropagation();
+  const tt = document.getElementById('pitch-tooltip');
+  tt.innerHTML = '';
+  if (typeName) tt.append(h('div', { class: 'pt-name' }, typeName));
+  if (velo)     tt.append(h('div', { class: 'pt-velo' }, `${velo} mph`));
+  if (callDesc) tt.append(h('div', { class: 'pt-call' }, callDesc));
+  if (count)    tt.append(h('div', { class: 'pt-count' }, `${count} count`));
+  // Position: below the pill, nudged left if near right edge
+  const rect = e.currentTarget.getBoundingClientRect();
+  const ttWidth = 210;
+  const left = Math.min(rect.left, window.innerWidth - ttWidth - 12);
+  const top = rect.bottom + window.scrollY + 6;
+  tt.style.left = Math.max(8, left) + 'px';
+  tt.style.top = top + 'px';
+  tt.classList.add('visible');
+}
+
+document.addEventListener('click', () => {
+  document.getElementById('pitch-tooltip')?.classList.remove('visible');
+});
+
+// --- Pitch helpers ---
+const PITCH_CODE_DISPLAY = { ST: 'SW' };
+
+function displayPitchCode(code) {
+  return PITCH_CODE_DISPLAY[code] || code;
+}
+
+function pitchClass(code, isLast) {
+  let base;
+  if ('BIPVJY'.includes(code))      base = 'p-ball';
+  else if (code === 'C')             base = 'p-ck';
+  else if ('STMWQO'.includes(code)) base = 'p-sk';
+  else if ('FL'.includes(code))     base = 'p-foul';
+  else if ('XDE'.includes(code))    base = 'p-inplay';
+  else if (code === 'H')            base = 'p-hbp';
+  else                              base = 'p-ball';
+  return 'pitch-pill ' + base + (isLast ? ' p-last' : '');
+}
+
+function renderPitches(play) {
+  const pitches = (play.playEvents || []).filter(e => e.isPitch);
+  if (!pitches.length) return null;
+  const row = h('div', { class: 'pitch-seq' });
+  pitches.forEach((pitch, i) => {
+    const isLast = i === pitches.length - 1;
+    const code = pitch.details?.call?.code || 'B';
+    const typeCode = pitch.details?.type?.code || '—';
+    const typeName = pitch.details?.type?.description || typeCode;
+    const velo = pitch.pitchData?.startSpeed ? Math.round(pitch.pitchData.startSpeed) : null;
+    const callDesc = pitch.details?.description || pitch.details?.call?.description || '';
+    const count = pitch.count ? `${pitch.count.balls}-${pitch.count.strikes}` : '';
+    const tip = `${typeName}${velo ? ' · ' + velo + ' mph' : ''}\n${callDesc}${count ? '\ncount: ' + count : ''}`;
+    row.append(h('div', { class: pitchClass(code, isLast), title: tip, onClick: (e) => showPitchTooltip(e, typeName, velo, callDesc, count) },
+      h('span', { class: 'pitch-type' }, displayPitchCode(typeCode)),
+      velo ? h('span', { class: 'pitch-velo' }, String(velo)) : null
+    ));
+  });
+  return row;
+}
+
+function renderLegend() {
+  const items = [
+    { cls: 'p-ball',   label: 'ball',        color: '#60a5fa' },
+    { cls: 'p-ck',     label: 'called K',    color: '#f87171' },
+    { cls: 'p-sk',     label: 'swinging K',  color: '#f87171' },
+    { cls: 'p-foul',   label: 'foul',        color: '#fb923c' },
+    { cls: 'p-inplay', label: 'in play',     color: '#4ade80' },
+    { cls: 'p-hbp',    label: 'HBP',         color: '#a78bfa' },
+  ];
+  return h('div', { class: 'pitch-legend' },
+    ...items.map(it => h('div', { class: 'legend-item' },
+      h('div', { class: 'legend-dot', style: `border-color:${it.color};background:${it.color}22` }),
+      it.label
+    ))
+  );
+}
+
+function render() {
+  state.view === 'games' ? renderGames() : renderTracker();
+}
+
+render();
+loadGames();
+</script>
+</body>
+</html>
