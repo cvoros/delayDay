@@ -8,11 +8,15 @@
 <meta property="og:title" content="delayDay">
 <meta property="og:description" content="Spoiler-free MLB game tracker. Watch on your own schedule.">
 <meta property="og:type" content="website">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23f5f0e8' stroke='%23c8b89a' stroke-width='2'/%3E%3Cpath d='M28 22 Q50 38 72 22' fill='none' stroke='%23cc3333' stroke-width='3.5' stroke-linecap='round'/%3E%3Cpath d='M28 78 Q50 62 72 78' fill='none' stroke='%23cc3333' stroke-width='3.5' stroke-linecap='round'/%3E%3Cpath d='M22 28 Q38 50 22 72' fill='none' stroke='%23cc3333' stroke-width='3.5' stroke-linecap='round'/%3E%3Cpath d='M78 28 Q62 50 78 72' fill='none' stroke='%23cc3333' stroke-width='3.5' stroke-linecap='round'/%3E%3Ccircle cx='50' cy='50' r='3' fill='%231a1a2e'/%3E%3Cline x1='50' y1='50' x2='50' y2='24' stroke='%231a1a2e' stroke-width='4' stroke-linecap='round'/%3E%3Cline x1='50' y1='50' x2='68' y2='56' stroke='%231a1a2e' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" type="image/png" href="icon.png">
+<meta property="og:image" content="icon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  button { touch-action: manipulation; }
 
   :root {
     --bg: #0c0f17;
@@ -214,6 +218,7 @@
   .snap-footer { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 
   .reveal-btns { display: flex; gap: 7px; flex-wrap: wrap; }
+  .reveal-btns button { touch-action: manipulation; }
 
   .reveal-btn {
     background: none;
@@ -652,7 +657,7 @@ function renderGames() {
 
   app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
     h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
-    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.0')
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.3')
   );
 
   const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
@@ -690,9 +695,9 @@ function renderGames() {
     const card = h('button', { class: 'game-card', onClick: () => selectGame(g) },
       h('div', {},
         h('div', { class: 'game-teams' },
-          g.teams.away.team.name,
+          displayTeamName(g.teams.away.team.name),
           h('span', { class: 'at' }, ' at '),
-          g.teams.home.team.name
+          displayTeamName(g.teams.home.team.name)
         ),
         h('div', { class: 'game-time' }, time)
       ),
@@ -838,7 +843,9 @@ function renderLineupPanel(visible, si, sh, partialBatterId, partialPlay) {
 
     const fullName = player.person?.fullName || '';
     const parts = fullName.split(' ');
-    const lastName = parts.length > 1 ? parts.slice(1).join(' ') : fullName;
+    const rawLastName = parts.length > 1 ? parts.slice(1).join(' ') : fullName;
+    const isCheater = displayPlayerName(fullName) !== fullName;
+    const lastName = isCheater ? '[CHEATER]' : rawLastName;
     const pos = player.allPositions?.[0]?.abbreviation || player.position?.abbreviation || '—';
 
     const isCurrent = id === currentBatterId;
@@ -864,7 +871,7 @@ function renderLineupPanel(visible, si, sh, partialBatterId, partialPlay) {
     panel.append(h('div', { class: rowClass },
       h('span', { class: 'lr-num' }, String(slot)),
       h('span', { class: 'lr-pos' }, pos),
-      h('span', { class: `lr-name${isCurrent ? ' is-current' : ''}`, title: tip }, lastName),
+      h('span', { class: `lr-name${isCurrent ? ' is-current' : ''}`, title: tip, style: isCheater ? 'color:var(--red)' : '' }, lastName),
       h('span', { class: statCls }, statStr)
     ));
   });
@@ -963,7 +970,7 @@ function renderPartialCard(play, numPitches) {
   return h('div', { class: 'play-card is-partial' },
     h('div', { class: 'play-top' },
       h('span', { class: 'batter' },
-        play.matchup?.batter?.fullName || '',
+        displayPlayerName(play.matchup?.batter?.fullName),
         (() => { const { pos, avg, ops } = getBatterInfo(play.matchup?.batter?.id, play.about?.halfInning); return (pos || avg || ops) ? h('span', { class: 'pitcher-line', style: 'margin-left:6px' }, [pos, avg ? 'AVG ' + avg : '', ops ? 'OPS ' + ops : ''].filter(Boolean).join('  ·  ')) : null; })()
       ),
       isComplete
@@ -1031,9 +1038,9 @@ function renderTracker() {
     h('button', { class: 'back-btn', onClick: backToGames }, '← games'),
     h('div', {},
       h('div', { class: 'matchup' },
-        state.game.teams.away.team.name,
+        displayTeamName(state.game.teams.away.team.name),
         h('span', { class: 'at' }, ' @ '),
-        state.game.teams.home.team.name
+        displayTeamName(state.game.teams.home.team.name)
       ),
       liveData ? h('div', { class: 'live-info' }, ...liveInfoKids) : null
     )
@@ -1096,21 +1103,25 @@ function renderTracker() {
       h('span', { class: 'inn-label' }, `${ord(si)} inning`)
     ),
     h('div', { class: 'snap-footer' },
-      canAdvance
-        ? h('div', { class: 'reveal-btns' },
-            h('button', { class: 'reveal-btn secondary', onClick: nextPitch },
-              '⚾ next pitch'
-            ),
-            h('button', { class: 'reveal-btn', onClick: nextBatter },
-              'next batter',
-              batchesAhead > 0
-                ? h('span', { class: 'ahead' }, `${batchesAhead} ahead`)
-                : null
-            )
-          )
-        : visible.length > 0 || (partialPlay && isPartialComplete)
-          ? h('div', { class: 'caught-up' }, '✓ caught up to this point')
-          : null
+      h('div', { class: 'reveal-btns' },
+        h('button', {
+          class: 'reveal-btn secondary',
+          onClick: canAdvance ? nextBatter : null,
+          style: canAdvance ? '' : 'opacity:0.35;cursor:default'
+        }, 'next batter',
+          canAdvance && batchesAhead > 0
+            ? h('span', { class: 'ahead' }, `${batchesAhead} ahead`)
+            : null
+        ),
+        h('button', {
+          class: 'reveal-btn',
+          onClick: canAdvance ? nextPitch : null,
+          style: canAdvance ? '' : 'opacity:0.35;cursor:default'
+        }, '⚾ next pitch')
+      ),
+      !canAdvance && (visible.length > 0 || (partialPlay && isPartialComplete))
+        ? h('div', { class: 'caught-up', style: 'margin-top:8px' }, '✓ caught up to live · new plays won\'t auto-reveal')
+        : null
     )
   ));
 
@@ -1162,7 +1173,7 @@ function renderTracker() {
           playsDiv.append(h('div', { class: 'play-card' },
             h('div', { class: 'play-top' },
               h('span', { class: 'batter' },
-                play.matchup?.batter?.fullName || '',
+                displayPlayerName(play.matchup?.batter?.fullName),
                 (() => { const { pos, avg, ops } = getBatterInfo(play.matchup?.batter?.id, play.about?.halfInning); return (pos || avg || ops) ? h('span', { class: 'pitcher-line', style: 'margin-left:6px' }, [pos, avg ? 'AVG ' + avg : '', ops ? 'OPS ' + ops : ''].filter(Boolean).join('  ·  ')) : null; })()
               ),
               h('span', { class: 'event', style: `color:${eventColor(play.result?.event)}` }, play.result?.event || '')
@@ -1216,6 +1227,23 @@ const PITCH_CODE_DISPLAY = { ST: 'SW' };
 
 function displayPitchCode(code) {
   return PITCH_CODE_DISPLAY[code] || code;
+}
+
+function displayPlayerName(name) {
+  if (!name) return '';
+  const cheaters = [
+    'Carlos Correa',
+    'Jose Altuve',
+    'Alex Bregman',
+  ];
+  if (cheaters.includes(name)) return '[CHEATER]';
+  return name;
+}
+
+function displayTeamName(name) {
+  if (!name) return '';
+  if (name === 'Houston Astros') return 'Houston Asterisks';
+  return name;
 }
 
 function pitchClass(code, isLast) {
