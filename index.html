@@ -668,7 +668,7 @@ function renderGames() {
 
   app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
     h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
-    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.7')
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.8')
   );
 
   const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
@@ -899,7 +899,7 @@ function nextPitch() {
   if (ahead.length <= state.revealCount) return;
   const partial = ahead[state.revealCount];
   const pitches = (partial.playEvents || []).filter(e => e.isPitch);
-  const hasResult = !!partial.result?.event;
+  const hasResult = isRealAtBatResult(partial);
 
   if (!state.partialActive) {
     state.partialActive = true;
@@ -929,7 +929,7 @@ function nextBatter() {
   } else {
     if (ahead.length <= state.revealCount) return;
     const partial = ahead[state.revealCount];
-    const hasResult = !!partial.result?.event;
+    const hasResult = isRealAtBatResult(partial);
     // Don't move an in-progress play into the feed — wait for it to complete
     if (!hasResult) return;
     state.revealCount++;
@@ -958,10 +958,18 @@ function getPitcherERA(pitcherId, halfInning) {
   return player?.seasonStats?.pitching?.era ?? '';
 }
 
-function renderPartialCard(play, numPitches, resultRevealed) {
+function isRealAtBatResult(play) {
+  const ev = play.result?.event?.toLowerCase() || '';
+  if (!ev) return false;
+  // Exclude non-at-bat game events
+  const nonAtBat = ['mound visit', 'pitching change', 'offensive substitution', 'defensive substitution',
+    'defensive switch', 'runner placed on base', 'ejection', 'umpire substitution',
+    'game advisory', 'injury', 'wild pitch', 'passed ball'];
+  return !nonAtBat.some(x => ev.includes(x));
+}
   const allPitches = (play.playEvents || []).filter(e => e.isPitch);
   const shown = allPitches.slice(0, numPitches);
-  const hasResult = !!play.result?.event;
+  const hasResult = isRealAtBatResult(play);
   const isComplete = resultRevealed && hasResult;
 
   const lastShown = shown[shown.length - 1];
@@ -1203,6 +1211,7 @@ function renderTracker() {
         );
         const playsDiv = h('div', { class: 'plays' });
         [...g.plays].reverse().forEach(play => {
+          if (!isRealAtBatResult(play)) return;
           const isScoringPlay = play.about?.isScoringPlay || play.result?.rbi > 0;
           const pitches = (play.playEvents || []).filter(e => e.isPitch);
           const lastPitch = pitches[pitches.length - 1];
