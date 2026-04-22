@@ -668,7 +668,7 @@ function renderGames() {
 
   app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
     h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
-    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.5')
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.6')
   );
 
   const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
@@ -899,16 +899,19 @@ function nextPitch() {
   if (ahead.length <= state.revealCount) return;
   const partial = ahead[state.revealCount];
   const pitches = (partial.playEvents || []).filter(e => e.isPitch);
+  const hasResult = !!partial.result?.event;
+
   if (!state.partialActive) {
     state.partialActive = true;
     state.resultRevealed = false;
   } else if (state.revealPitches < pitches.length) {
     state.revealPitches++;
+  } else if (!hasResult) {
+    // At-bat still in progress on the field — stay here, don't advance
+    return;
   } else if (!state.resultRevealed) {
-    // All pitches shown — reveal result
     state.resultRevealed = true;
   } else {
-    // Result shown — move to next batter
     state.revealCount++;
     state.revealPitches = 0;
     state.resultRevealed = false;
@@ -925,6 +928,10 @@ function nextBatter() {
     state.resultRevealed = false;
   } else {
     if (ahead.length <= state.revealCount) return;
+    const partial = ahead[state.revealCount];
+    const hasResult = !!partial.result?.event;
+    // Don't move an in-progress play into the feed — wait for it to complete
+    if (!hasResult) return;
     state.revealCount++;
     state.revealPitches = 0;
     state.resultRevealed = false;
@@ -954,7 +961,8 @@ function getPitcherERA(pitcherId, halfInning) {
 function renderPartialCard(play, numPitches, resultRevealed) {
   const allPitches = (play.playEvents || []).filter(e => e.isPitch);
   const shown = allPitches.slice(0, numPitches);
-  const isComplete = resultRevealed;
+  const hasResult = !!play.result?.event;
+  const isComplete = resultRevealed && hasResult;
 
   const lastShown = shown[shown.length - 1];
   const countStr = lastShown?.count ? `${lastShown.count.balls}-${lastShown.count.strikes}` : '0-0';
@@ -990,7 +998,9 @@ function renderPartialCard(play, numPitches, resultRevealed) {
       ),
       isComplete
         ? h('span', { class: 'event', style: `color:${eventColor(play.result?.event)}` }, play.result?.event || '')
-        : h('span', { class: 'in-ab' }, countStr)
+        : (numPitches >= allPitches.length && !hasResult)
+          ? h('span', { class: 'in-ab', style: 'color:var(--amber)' }, '⟳ live...')
+          : h('span', { class: 'in-ab' }, countStr)
     ),
     pitchInfo ? h('div', { class: 'pitcher-line' }, pitchInfo) : null,
     isComplete ? h('div', { class: 'desc' }, play.result?.description || '') : null,
