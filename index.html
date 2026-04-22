@@ -512,7 +512,7 @@ let state = {
   allPlays: [], playsLoading: false,
   liveData: null, boxscore: null,
   snapInning: 1, snapHalf: 'top',
-  revealCount: 0, revealPitches: 0, partialActive: false, showScore: false,
+  revealCount: 0, revealPitches: 0, partialActive: false, baselineCount: 0, showScore: false,
   refreshIv: null,
 };
 
@@ -575,6 +575,11 @@ async function loadFeed() {
     const d = await r.json();
     state.allPlays = d.liveData?.plays?.allPlays || [];
     state.boxscore = d.liveData?.boxscore?.teams || null;
+    // Set baseline on first load only — plays before snap at this moment show freely,
+    // anything added later by auto-refresh requires manual reveal
+    if (state.baselineCount === 0 && state.allPlays.length > 0) {
+      state.baselineCount = state.allPlays.filter(p => beforeSnap(p, state.snapInning, state.snapHalf)).length;
+    }
     const ls = d.liveData?.linescore;
     if (ls) {
       state.liveData = {
@@ -602,6 +607,7 @@ function selectGame(g) {
   state.revealCount = 0;
   state.revealPitches = 0;
   state.partialActive = false;
+  state.baselineCount = 0;
   state.snapInning = 1;
   state.snapHalf = 'top';
   state.showScore = false;
@@ -630,6 +636,9 @@ function setSnap(inning, half) {
   state.revealCount = 0;
   state.revealPitches = 0;
   state.partialActive = false;
+  // Freeze the baseline — plays before snap point at this moment show automatically,
+  // anything added later by auto-refresh must be revealed manually
+  state.baselineCount = state.allPlays.filter(p => beforeSnap(p, inning, half)).length;
   render();
 }
 
@@ -657,7 +666,7 @@ function renderGames() {
 
   app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
     h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
-    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.3')
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.4')
   );
 
   const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
@@ -992,8 +1001,9 @@ function renderTracker() {
 
   const { snapInning: si, snapHalf: sh, allPlays, revealCount, revealPitches, liveData, playsLoading, showScore } = state;
 
-  const base    = allPlays.filter(p => beforeSnap(p, si, sh));
-  const ahead   = allPlays.filter(p => !beforeSnap(p, si, sh));
+  const allBase  = allPlays.filter(p => beforeSnap(p, si, sh));
+  const base     = allBase.slice(0, state.baselineCount);
+  const ahead    = allPlays.slice(state.baselineCount);
   const visible = [...base, ...ahead.slice(0, revealCount)];
 
   // Partial at-bat (currently being pitched through)
