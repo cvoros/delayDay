@@ -668,7 +668,7 @@ function renderGames() {
 
   app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
     h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
-    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.6')
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.7')
   );
 
   const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
@@ -1080,6 +1080,17 @@ function renderTracker() {
         )
       : [];
 
+    // Add runs from plays revealed beyond the snap point
+    const extraAwayRuns = visible.filter(p => p.about.halfInning === 'top' && p.about.inning >= si)
+      .reduce((s, p) => s + (p.result?.runs || 0), 0);
+    const extraHomeRuns = visible.filter(p => p.about.halfInning === 'bottom' && p.about.inning >= si)
+      .reduce((s, p) => s + (p.result?.runs || 0), 0);
+
+    const awayR = revInnings.reduce((s,i) => s+(i.away?.runs||0),0) + extraAwayRuns;
+    const homeR = revInnings.reduce((s,i) => s+(i.home?.runs||0),0) + extraHomeRuns;
+    const awayH = revInnings.reduce((s,i) => s+(i.away?.hits||0),0);
+    const homeH = revInnings.reduce((s,i) => s+(i.home?.hits||0),0);
+
     app.append(h('div', { class: 'linescore-wrap' },
       h('table', { class: 'linescore' },
         h('thead', {}, h('tr', {},
@@ -1091,15 +1102,15 @@ function renderTracker() {
           h('tr', {},
             h('td', { class: 'team-cell' }, liveData.awayAbbr),
             ...revInnings.map(i => h('td', {}, i.away?.runs !== undefined ? String(i.away.runs) : '-')),
-            h('td', { class: 'rhe' }, String(revInnings.reduce((s,i) => s+(i.away?.runs||0),0))),
-            h('td', {}, String(revInnings.reduce((s,i) => s+(i.away?.hits||0),0))),
+            h('td', { class: 'rhe' }, String(awayR)),
+            h('td', {}, String(awayH)),
             h('td', {}, String(revInnings.reduce((s,i) => s+(i.away?.errors||0),0)))
           ),
           h('tr', {},
             h('td', { class: 'team-cell' }, liveData.homeAbbr),
             ...revInnings.map(i => i.home?.runs !== undefined ? h('td', {}, String(i.home.runs)) : h('td', { class: 'hidden-cell' }, '·')),
-            h('td', { class: 'rhe' }, String(revInnings.reduce((s,i) => s+(i.home?.runs||0),0))),
-            h('td', {}, String(revInnings.reduce((s,i) => s+(i.home?.hits||0),0))),
+            h('td', { class: 'rhe' }, String(homeR)),
+            h('td', {}, String(homeH)),
             h('td', {}, String(revInnings.reduce((s,i) => s+(i.home?.errors||0),0)))
           )
         )
