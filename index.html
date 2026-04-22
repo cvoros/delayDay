@@ -512,7 +512,7 @@ let state = {
   allPlays: [], playsLoading: false,
   liveData: null, boxscore: null,
   snapInning: 1, snapHalf: 'top',
-  revealCount: 0, revealPitches: 0, partialActive: false, baselineCount: 0, showScore: false,
+  revealCount: 0, revealPitches: 0, partialActive: false, baselineCount: 0, resultRevealed: false, showScore: false,
   refreshIv: null,
 };
 
@@ -608,6 +608,7 @@ function selectGame(g) {
   state.revealPitches = 0;
   state.partialActive = false;
   state.baselineCount = 0;
+  state.resultRevealed = false;
   state.snapInning = 1;
   state.snapHalf = 'top';
   state.showScore = false;
@@ -636,6 +637,7 @@ function setSnap(inning, half) {
   state.revealCount = 0;
   state.revealPitches = 0;
   state.partialActive = false;
+  state.resultRevealed = false;
   // Freeze the baseline — plays before snap point at this moment show automatically,
   // anything added later by auto-refresh must be revealed manually
   state.baselineCount = state.allPlays.filter(p => beforeSnap(p, inning, half)).length;
@@ -666,7 +668,7 @@ function renderGames() {
 
   app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
     h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
-    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.4')
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.5')
   );
 
   const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
@@ -893,35 +895,39 @@ function getAhead() {
 }
 
 function nextPitch() {
-  const ahead = getAhead();
+  const ahead = state.allPlays.slice(state.baselineCount);
   if (ahead.length <= state.revealCount) return;
   const partial = ahead[state.revealCount];
   const pitches = (partial.playEvents || []).filter(e => e.isPitch);
   if (!state.partialActive) {
-    // First press: just surface the batter, no pitches yet
     state.partialActive = true;
+    state.resultRevealed = false;
   } else if (state.revealPitches < pitches.length) {
     state.revealPitches++;
+  } else if (!state.resultRevealed) {
+    // All pitches shown — reveal result
+    state.resultRevealed = true;
   } else {
-    // All pitches shown — immediately surface next batter
+    // Result shown — move to next batter
     state.revealCount++;
     state.revealPitches = 0;
+    state.resultRevealed = false;
     state.partialActive = ahead.length > state.revealCount;
   }
   render();
 }
 
 function nextBatter() {
-  const ahead = getAhead();
+  const ahead = state.allPlays.slice(state.baselineCount);
   if (!state.partialActive) {
-    // No partial yet — just surface the next batter, same as first nextPitch press
     if (ahead.length <= state.revealCount) return;
     state.partialActive = true;
+    state.resultRevealed = false;
   } else {
-    // Complete the current partial, then surface the next batter
     if (ahead.length <= state.revealCount) return;
     state.revealCount++;
     state.revealPitches = 0;
+    state.resultRevealed = false;
     state.partialActive = ahead.length > state.revealCount;
   }
   render();
@@ -945,10 +951,10 @@ function getPitcherERA(pitcherId, halfInning) {
   return player?.seasonStats?.pitching?.era ?? '';
 }
 
-function renderPartialCard(play, numPitches) {
+function renderPartialCard(play, numPitches, resultRevealed) {
   const allPitches = (play.playEvents || []).filter(e => e.isPitch);
   const shown = allPitches.slice(0, numPitches);
-  const isComplete = numPitches >= allPitches.length;
+  const isComplete = resultRevealed;
 
   const lastShown = shown[shown.length - 1];
   const countStr = lastShown?.count ? `${lastShown.count.balls}-${lastShown.count.strikes}` : '0-0';
@@ -1009,7 +1015,7 @@ function renderTracker() {
   // Partial at-bat (currently being pitched through)
   const partialPlay   = ahead[revealCount] || null;
   const partialPitchData = partialPlay ? (partialPlay.playEvents || []).filter(e => e.isPitch) : [];
-  const isPartialComplete = revealPitches >= partialPitchData.length;
+  const isPartialComplete = state.resultRevealed;
 
   // What's hidden: at-bats after the current partial
   const batchesAhead = ahead.length - revealCount - (partialPlay ? 1 : 0);
@@ -1153,7 +1159,7 @@ function renderTracker() {
             h('div', { class: 'partial-dot' }),
             `${partialPlay.about.halfInning === 'top' ? '▲' : '▼'} ${ord(partialPlay.about.inning)} inning · now`
           ),
-          renderPartialCard(partialPlay, revealPitches)
+          renderPartialCard(partialPlay, revealPitches, state.resultRevealed)
         )
       );
     }
