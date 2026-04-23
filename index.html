@@ -967,6 +967,8 @@ function isRealAtBatResult(play) {
     'game advisory', 'injury', 'wild pitch', 'passed ball'];
   return !nonAtBat.some(x => ev.includes(x));
 }
+
+function renderPartialCard(play, numPitches, resultRevealed) {
   const allPitches = (play.playEvents || []).filter(e => e.isPitch);
   const shown = allPitches.slice(0, numPitches);
   const hasResult = isRealAtBatResult(play);
