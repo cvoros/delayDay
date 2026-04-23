@@ -505,6 +505,14 @@
 const MLB = 'https://statsapi.mlb.com/api/v1';
 const LIVE = 'https://statsapi.mlb.com/api/v1.1';
 
+
+// ============================================================
+// APPLICATION STATE
+// This single object holds everything the app needs to know.
+// When anything changes, we update state and call render().
+// This pattern is called 'single source of truth' — one place
+// to look to understand what the app is currently doing.
+// ============================================================
 let state = {
   view: 'games',
   viewDate: 'today',
@@ -513,10 +521,21 @@ let state = {
   allPlays: [], playsLoading: false,
   liveData: null, boxscore: null,
   snapInning: 1, snapHalf: 'top',
-  revealCount: 0, revealPitches: 0, partialActive: false, baselineCount: 0, resultRevealed: false, showScore: false,
+  revealCount: 0,       // how many at-bats beyond the baseline have been revealed
+  revealPitches: 0,     // how many pitches of the current at-bat have been shown
+  partialActive: false, // true when a batter card is showing but at-bat isn't done
+  baselineCount: 0,     // plays before snap point at load time — frozen to prevent auto-reveal
+  resultRevealed: false,// true only when user explicitly chose to see the at-bat result
+  showScore: false,     // whether the live score is currently visible
   refreshIv: null,
 };
 
+
+// ============================================================
+// DATE HELPERS
+// MLB API expects dates in YYYY-MM-DD format.
+// toLocaleDateString('en-CA') produces exactly that format.
+// ============================================================
 function getTodayStr() {
   return new Date().toLocaleDateString('en-CA');
 }
@@ -531,11 +550,23 @@ function getDateStr() {
   return state.viewDate === 'yesterday' ? getYesterdayStr() : getTodayStr();
 }
 
+
+// ============================================================
+// ORDINAL NUMBERS  e.g. 1 -> '1st', 2 -> '2nd', 3 -> '3rd'
+// Used for displaying inning numbers in the UI.
+// ============================================================
 function ord(n) {
   const s = ['th','st','nd','rd'], v = n % 100;
   return n + (s[(v-20)%10] || s[v] || s[0]);
 }
 
+
+// ============================================================
+// SNAP FILTER
+// Returns true if a play happened BEFORE the user's snap point.
+// 'Before snap' plays show automatically in the feed.
+// 'After snap' plays go into the reveal queue (require a button press).
+// ============================================================
 function beforeSnap(play, si, sh) {
   const { inning, halfInning } = play.about;
   if (inning < si) return true;
@@ -543,6 +574,12 @@ function beforeSnap(play, si, sh) {
   return false;
 }
 
+
+// ============================================================
+// EVENT COLOR CODING
+// Maps at-bat outcomes to CSS color variables.
+// Used to color the event label (Single, Strikeout etc.) on play cards.
+// ============================================================
 function eventColor(ev = '') {
   const e = ev.toLowerCase();
   if (e.includes('home run')) return 'var(--amber)';
@@ -554,6 +591,13 @@ function eventColor(ev = '') {
   return 'var(--muted)';
 }
 
+
+// ============================================================
+// LOAD GAMES
+// Fetches the schedule from MLB API for the selected date.
+// Filters out postponed/cancelled games.
+// Called once on startup and again when switching dates.
+// ============================================================
 async function loadGames() {
   try {
     const r = await fetch(`${MLB}/schedule?sportId=1&date=${getDateStr()}&hydrate=linescore,teams`);
@@ -569,6 +613,19 @@ async function loadGames() {
   render();
 }
 
+
+// ============================================================
+// LOAD FEED
+// Fetches the live game feed for the selected game including:
+//   - allPlays: every at-bat with pitch-by-pitch data
+//   - boxscore: rosters, batting order, season stats
+//   - linescore: current score, inning, runs per inning
+//
+// ANTI-SPOILER: baselineCount is set ONCE on first load.
+// It freezes the number of plays before the snap point.
+// New plays from auto-refresh land after baselineCount and
+// require a button press to reveal.
+// ============================================================
 async function loadFeed() {
   if (!state.game) return;
   try {
@@ -599,6 +656,13 @@ async function loadFeed() {
   render();
 }
 
+
+// ============================================================
+// SELECT GAME
+// Called when the user taps a game on the home screen.
+// Resets all state, loads the live feed, and starts the
+// 30-second auto-refresh timer.
+// ============================================================
 function selectGame(g) {
   state.game = g;
   state.view = 'tracker';
@@ -621,6 +685,12 @@ function selectGame(g) {
   document.getElementById('refresh-bar').style.display = 'block';
 }
 
+
+// ============================================================
+// BACK TO GAMES
+// Returns to the home screen. Cancels the auto-refresh timer
+// so we're not fetching game data when nobody is watching.
+// ============================================================
 function backToGames() {
   if (state.refreshIv) clearInterval(state.refreshIv);
   state.view = 'games';
@@ -632,6 +702,13 @@ function backToGames() {
   render();
 }
 
+
+// ============================================================
+// SET SNAP
+// Called when user changes which inning/half they're watching.
+// Resets the reveal queue and re-freezes the baseline at the
+// new snap point using the current play data.
+// ============================================================
 function setSnap(inning, half) {
   state.snapInning = inning;
   state.snapHalf = half;
@@ -645,6 +722,14 @@ function setSnap(inning, half) {
   render();
 }
 
+
+// ============================================================
+// DOM BUILDER — h()
+// A lightweight helper that creates HTML elements in JavaScript.
+// Works like React.createElement() but produces real DOM nodes.
+// Usage: h('div', { class: 'foo', onClick: fn }, 'Hello')
+// This lets us build the whole UI in JS without a framework.
+// ============================================================
 // --- Render helpers ---
 function h(tag, attrs, ...children) {
   const el = document.createElement(tag);
@@ -663,13 +748,19 @@ function h(tag, attrs, ...children) {
   return el;
 }
 
+
+// ============================================================
+// RENDER GAMES (Home Screen)
+// Displays the game list with today/yesterday toggle.
+// Each game shows team names, start time, and live/final badge.
+// ============================================================
 function renderGames() {
   const app = document.getElementById('app');
   app.innerHTML = '';
 
   app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
     h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
-    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.2.0')
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.2.1')
   );
 
   const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
@@ -722,6 +813,14 @@ function renderGames() {
   app.append(list);
 }
 
+
+// ============================================================
+// COMPUTE BATTER STATS
+// Calculates in-game stats (AB, H, HR, RBI) from visible plays
+// only — not from the boxscore. This ensures we only show stats
+// up to what the user has revealed (no spoilers).
+// Walks and sac flies don't count as official at-bats.
+// ============================================================
 function computeBatterStats(plays) {
   const stats = {};
   plays.forEach(play => {
@@ -740,6 +839,15 @@ function computeBatterStats(plays) {
   return stats;
 }
 
+
+// ============================================================
+// RENDER LINEUP PANEL
+// Builds the left-side batting order panel for whichever
+// team is currently up. Handles substitutions by:
+// 1. Seeding slots from the full boxscore roster
+// 2. Overriding with whoever actually batted (from plays)
+// 3. Also slots in the current partial batter immediately
+// ============================================================
 function renderLineupPanel(visible, si, sh, partialBatterId, partialPlay) {
   if (!state.boxscore) {
     return h('div', { class: 'lineup-panel' },
@@ -891,10 +999,29 @@ function renderLineupPanel(visible, si, sh, partialBatterId, partialPlay) {
   return panel;
 }
 
+
+// ============================================================
+// GET AHEAD (legacy helper)
+// Returns plays after the snap point. The main reveal flow
+// now uses state.allPlays.slice(state.baselineCount) directly.
+// ============================================================
 function getAhead() {
   return state.allPlays.filter(p => !beforeSnap(p, state.snapInning, state.snapHalf));
 }
 
+
+// ============================================================
+// NEXT PITCH — Main reveal button action.
+// Each press advances one step through the at-bat:
+//   1. Show batter card (no pitches yet)
+//   2. Reveal one pitch at a time
+//   3. If at-bat still live on field: wait (show '⟳ live...')
+//   4. Show the result
+//   5. Move to next batter (back to step 1)
+//
+// Uses isRealAtBatResult() instead of play.result?.event because
+// mound visits have a result event but aren't real at-bats.
+// ============================================================
 function nextPitch() {
   const ahead = state.allPlays.slice(state.baselineCount);
   if (ahead.length <= state.revealCount) return;
@@ -921,6 +1048,13 @@ function nextPitch() {
   render();
 }
 
+
+// ============================================================
+// NEXT BATTER — Skip to next batter without seeing pitches.
+// If no batter showing: surfaces the next batter card.
+// If batter showing: completes them and shows next batter.
+// Won't advance if the current at-bat has no result yet.
+// ============================================================
 function nextBatter() {
   const ahead = state.allPlays.slice(state.baselineCount);
   if (!state.partialActive) {
@@ -941,6 +1075,12 @@ function nextBatter() {
   render();
 }
 
+
+// ============================================================
+// GET BATTER INFO
+// Looks up season AVG, OPS, and position from the boxscore.
+// The batter is on the SAME team as the batting half-inning.
+// ============================================================
 function getBatterInfo(batterId, halfInning) {
   if (!state.boxscore || !batterId) return { pos: '', ops: '' };
   const teamKey = halfInning === 'top' ? 'away' : 'home';
@@ -951,6 +1091,12 @@ function getBatterInfo(batterId, halfInning) {
   return { pos, avg, ops };
 }
 
+
+// ============================================================
+// GET PITCHER ERA
+// Looks up season ERA from the boxscore.
+// The pitcher is on the OPPOSITE team from the batter.
+// ============================================================
 function getPitcherERA(pitcherId, halfInning) {
   if (!state.boxscore || !pitcherId) return '';
   // Pitcher is on the fielding team — opposite of batting half
@@ -959,6 +1105,14 @@ function getPitcherERA(pitcherId, halfInning) {
   return player?.seasonStats?.pitching?.era ?? '';
 }
 
+
+// ============================================================
+// IS REAL AT-BAT RESULT
+// Returns true only for genuine outcomes (hits, outs, walks).
+// Returns false for game events like mound visits and subs.
+// Without this, a mound visit would look like a completed
+// at-bat and trick the app into auto-revealing the next result.
+// ============================================================
 function isRealAtBatResult(play) {
   const ev = play.result?.event?.toLowerCase() || '';
   if (!ev) return false;
@@ -969,6 +1123,15 @@ function isRealAtBatResult(play) {
   return !nonAtBat.some(x => ev.includes(x));
 }
 
+
+// ============================================================
+// RENDER PARTIAL CARD
+// Shows the 'NOW' card for the at-bat currently in progress.
+// numPitches controls how many pitches are visible.
+// resultRevealed controls whether the outcome is shown.
+// isComplete is ONLY true when the user explicitly revealed
+// the result — it never flips automatically on refresh.
+// ============================================================
 function renderPartialCard(play, numPitches, resultRevealed) {
   const allPitches = (play.playEvents || []).filter(e => e.isPitch);
   const shown = allPitches.slice(0, numPitches);
@@ -1151,7 +1314,7 @@ function renderTracker() {
       h('span', { class: 'inn-label' }, `${ord(si)} inning`)
     ),
     h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:8px;' },
-      'space · next pitch    enter · next batter    ← → · inning    t/b · half'
+      'space · next pitch    enter/→ · next batter    ← · prev batter    t/b · half'
     ),
     h('div', { class: 'snap-footer' },
       h('div', { class: 'reveal-btns' },
@@ -1356,6 +1519,29 @@ function render() {
 render();
 loadGames();
 
+// ============================================================
+// PREV BATTER — Go back one batter.
+// Three cases:
+//   1. Partial showing with pitches: clear back to batter card
+//   2. Partial showing with no pitches: go back to previous batter's result
+//   3. No partial showing: go back to previous batter's result
+// ============================================================
+function prevBatter() {
+  if (state.partialActive && state.revealPitches > 0) {
+    // Just clear the pitches — stay on this batter
+    state.revealPitches = 0;
+    state.resultRevealed = false;
+  } else if (state.revealCount > 0) {
+    // Go back to previous batter, showing their result
+    state.revealCount--;
+    state.revealPitches = 0;
+    state.resultRevealed = true;
+    state.partialActive = true;
+  }
+  // If revealCount is 0 and no partial, nothing to go back to
+  render();
+}
+
 document.addEventListener('keydown', (e) => {
   if (state.view !== 'tracker') return;
   // Don't fire if user is typing in an input
@@ -1371,11 +1557,11 @@ document.addEventListener('keydown', (e) => {
       break;
     case 'ArrowRight':
       e.preventDefault();
-      setSnap(state.snapInning + 1, state.snapHalf);
+      nextBatter();
       break;
     case 'ArrowLeft':
       e.preventDefault();
-      setSnap(Math.max(1, state.snapInning - 1), state.snapHalf);
+      prevBatter();
       break;
     case 'KeyT':
       e.preventDefault();
