@@ -5,6 +5,50 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.2.4] - 2026-04-23
+### Fixed
+- Pitcher panel and lineup panel disappearing in landscape mode on iPhone. Bumped mobile breakpoint from 580px to 768px so all iPhones in both orientations use the single-column layout.
+### Added
+- No-cache meta tags to force iOS Safari to always fetch the latest version.
+
+---
+
+## [0.2.3] - 2026-04-23
+### Added
+- Pitcher panel below the batting order on the left side. Shows current pitcher's name, season ERA, game line (IP/K/BB/H), total pitch count, and full pitch mix breakdown with count, percentage, mini bar chart, and average velocity per pitch type.
+
+---
+
+## [0.2.2] - 2026-04-23
+### Changed
+- Significantly increased font sizes throughout the app for mobile readability. Bumped 21 individual CSS font-size declarations including batter names, event results, descriptions, buttons, pitch pills, and lineup panel.
+
+---
+
+## [0.2.1] - 2026-04-23
+### Changed
+- Arrow keys rewired: → now calls nextBatter(), ← calls new prevBatter() function.
+### Added
+- prevBatter() function: if pitches are showing, clears back to batter card; if at batter card, goes back to previous batter's completed result.
+- Updated keyboard shortcut hint line to reflect new arrow behavior.
+
+---
+
+## [0.2.0] - 2026-04-23
+### Added
+- Comprehensive code comments throughout the entire JavaScript codebase. Every major function has a header block explaining what it does, why it exists, and any non-obvious decisions.
+- Inline comments on all state object fields.
+
+---
+
+## [0.1.9] - 2026-04-23
+### Added
+- Keyboard shortcuts: Space (next pitch), Enter (next batter), → (next batter), ← (prev inning), T (top half), B (bottom half).
+- Keyboard hint line displayed below snap controls.
+- George Springer added to cheaters list.
+
+---
+
 ## [0.1.8] - 2026-04-22
 ### Fixed
 - Mound visits, pitching changes, and substitutions were being treated as completed at-bats, causing the next real at-bat to auto-reveal its result. Added `isRealAtBatResult()` to distinguish real at-bat outcomes from game events.
