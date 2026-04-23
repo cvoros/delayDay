@@ -369,12 +369,16 @@
     gap: 14px;
     align-items: start;
   }
-  @media (max-width: 768px) {
+  /* Portrait phones: single column, panels move below feed */
+  @media (max-width: 600px) {
     .tracker-grid { grid-template-columns: 1fr; }
-    .lineup-panel { order: 2; position: static !important; }
-    .pitcher-panel { order: 3; }
-    .right-col { order: 1; }
+    .lineup-panel { position: static !important; }
     .tracker-left-col { order: 2; width: 100%; }
+    .right-col { order: 1; }
+  }
+  /* Landscape phones: two columns but narrower left panel */
+  @media (min-width: 601px) and (max-width: 900px) {
+    .tracker-grid { grid-template-columns: 180px 1fr; }
   }
 
   /* Lineup panel */
@@ -798,7 +802,7 @@ function renderGames() {
 
   app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
     h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
-    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.2.4')
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.2.5')
   );
 
   const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
