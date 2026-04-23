@@ -668,7 +668,7 @@ function renderGames() {
 
   app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
     h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
-    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.8')
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.1.9')
   );
 
   const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
@@ -1149,6 +1149,9 @@ function renderTracker() {
       ),
       h('span', { class: 'inn-label' }, `${ord(si)} inning`)
     ),
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:8px;' },
+      'space · next pitch    enter · next batter    ← → · inning    t/b · half'
+    ),
     h('div', { class: 'snap-footer' },
       h('div', { class: 'reveal-btns' },
         h('button', {
@@ -1283,6 +1286,7 @@ function displayPlayerName(name) {
     'Carlos Correa',
     'Jose Altuve',
     'Alex Bregman',
+    'George Springer',
   ];
   if (cheaters.includes(name)) return '[CHEATER]';
   return name;
@@ -1350,6 +1354,38 @@ function render() {
 
 render();
 loadGames();
+
+document.addEventListener('keydown', (e) => {
+  if (state.view !== 'tracker') return;
+  // Don't fire if user is typing in an input
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  switch (e.code) {
+    case 'Space':
+      e.preventDefault();
+      nextPitch();
+      break;
+    case 'Enter':
+      e.preventDefault();
+      nextBatter();
+      break;
+    case 'ArrowRight':
+      e.preventDefault();
+      setSnap(state.snapInning + 1, state.snapHalf);
+      break;
+    case 'ArrowLeft':
+      e.preventDefault();
+      setSnap(Math.max(1, state.snapInning - 1), state.snapHalf);
+      break;
+    case 'KeyT':
+      e.preventDefault();
+      setSnap(state.snapInning, 'top');
+      break;
+    case 'KeyB':
+      e.preventDefault();
+      setSnap(state.snapInning, 'bottom');
+      break;
+  }
+});
 </script>
 </body>
 </html>
