@@ -366,10 +366,12 @@
     gap: 14px;
     align-items: start;
   }
-  @media (max-width: 580px) {
+  @media (max-width: 768px) {
     .tracker-grid { grid-template-columns: 1fr; }
     .lineup-panel { order: 2; position: static !important; }
+    .pitcher-panel { order: 3; }
     .right-col { order: 1; }
+    .tracker-left-col { order: 2; width: 100%; }
   }
 
   /* Lineup panel */
@@ -793,7 +795,7 @@ function renderGames() {
 
   app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
     h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
-    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.2.3')
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.2.4')
   );
 
   const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
@@ -1442,7 +1444,7 @@ function renderTracker() {
 
   // Two-column grid — left side has lineup + pitcher panels stacked
   const grid = h('div', { class: 'tracker-grid' });
-  const leftCol = h('div', { style: 'display:flex;flex-direction:column;gap:14px;' });
+  const leftCol = h('div', { class: 'tracker-left-col', style: 'display:flex;flex-direction:column;gap:14px;' });
   leftCol.append(renderLineupPanel(visible, si, effectiveHalf, partialBatterId, partialPlay));
   leftCol.append(renderPitcherPanel(visible, partialPlay, effectiveHalf));
   grid.append(leftCol);
