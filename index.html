@@ -503,6 +503,43 @@
   .pmix-bar { height: 100%; border-radius: 2px; background: var(--blue); }
   .pmix-velo { color: var(--muted); text-align: right; }
 
+  /* Leverage meter */
+  .leverage-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top: 1px solid var(--border);
+  }
+  .leverage-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .leverage-bar-wrap {
+    flex: 1;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .leverage-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s, background 0.3s;
+  }
+  .leverage-val {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    min-width: 28px;
+    text-align: right;
+  }
+
   /* Refresh indicator */
   .refresh-bar {
     position: fixed;
@@ -802,7 +839,7 @@ function renderGames() {
 
   app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
     h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
-    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.2.6')
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.3.0')
   );
 
   const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
@@ -1138,13 +1175,38 @@ function getBatterInfo(batterId, halfInning) {
 // GET PITCHER ERA
 // Looks up season ERA from the boxscore.
 // The pitcher is on the OPPOSITE team from the batter.
+// TWO-WAY PLAYER NOTE: For players like Ohtani, the boxscore
+// may only populate batting seasonStats by default. We check
+// multiple paths and fall back to a direct API call if needed,
+// caching the result to avoid repeat fetches.
 // ============================================================
+const pitcherERACache = {};
+
+async function fetchPitcherERAFromAPI(pitcherId) {
+  if (pitcherERACache[pitcherId] !== undefined) return;
+  pitcherERACache[pitcherId] = '';  // mark as fetching to avoid duplicate calls
+  try {
+    const r = await fetch(`${MLB}/people/${pitcherId}/stats?stats=season&group=pitching&season=${new Date().getFullYear()}&sportId=1`);
+    const d = await r.json();
+    pitcherERACache[pitcherId] = d.stats?.[0]?.splits?.[0]?.stat?.era ?? '';
+    render();  // re-render once we have the data
+  } catch(e) {}
+}
+
 function getPitcherERA(pitcherId, halfInning) {
   if (!state.boxscore || !pitcherId) return '';
-  // Pitcher is on the fielding team — opposite of batting half
   const teamKey = halfInning === 'top' ? 'home' : 'away';
   const player = state.boxscore[teamKey]?.players?.[`ID${pitcherId}`];
-  return player?.seasonStats?.pitching?.era ?? '';
+  // Check multiple paths — two-way players may store ERA differently
+  const era = player?.seasonStats?.pitching?.era
+    || player?.stats?.pitching?.era
+    || '';
+  if (era) return era;
+  // Fall back to direct API fetch for two-way players like Ohtani
+  if (pitcherERACache[pitcherId] === undefined) {
+    fetchPitcherERAFromAPI(pitcherId);
+  }
+  return pitcherERACache[pitcherId] || '';
 }
 
 
@@ -1167,6 +1229,75 @@ function isRealAtBatResult(play) {
 
 
 // ============================================================
+// COMPUTE LEVERAGE INDEX (simplified)
+// Estimates how high-stakes the current situation is, on a
+// scale where 1.0 = average. Real LI uses win probability
+// tables; this is a reasonable approximation from:
+//   - inning (later = higher stakes)
+//   - score differential (closer = higher stakes)
+//   - base runners (more runners in scoring position = higher)
+//   - outs (fewer outs with runners = higher)
+//
+// Inputs come from the play object's about/count/matchup data
+// plus the score at that point computed from visible plays.
+// Returns { li, pct, color } where pct is 0-100 for the bar.
+// ============================================================
+function computeLeverage(play, scoreDiff) {
+  const inning = play.about?.inning || 1;
+  const isBottom = play.about?.halfInning === 'bottom';
+
+  // --- Inning factor: stakes rise as game progresses ---
+  // 1st-3rd: 0.7, 4th-6th: 0.9, 7th: 1.2, 8th: 1.5, 9th+: 2.0
+  let inningFactor;
+  if (inning <= 3) inningFactor = 0.7;
+  else if (inning <= 6) inningFactor = 0.9;
+  else if (inning === 7) inningFactor = 1.2;
+  else if (inning === 8) inningFactor = 1.5;
+  else inningFactor = 2.0;
+  // Bottom of late innings even higher (walk-off potential)
+  if (inning >= 9 && isBottom) inningFactor += 0.5;
+
+  // --- Score factor: close games matter more ---
+  const absDiff = Math.abs(scoreDiff);
+  let scoreFactor;
+  if (absDiff === 0) scoreFactor = 1.5;       // tied
+  else if (absDiff === 1) scoreFactor = 1.3;  // one-run game
+  else if (absDiff === 2) scoreFactor = 1.0;
+  else if (absDiff === 3) scoreFactor = 0.7;
+  else if (absDiff <= 5) scoreFactor = 0.4;
+  else scoreFactor = 0.2;                     // blowout
+
+  // --- Runner factor from the play's runner data ---
+  // Check the runners on base at the start of this at-bat
+  let runnersOn = 0, risp = false;
+  const runners = play.runners || [];
+  const basesSeen = new Set();
+  runners.forEach(r => {
+    const start = r.movement?.start;
+    if (start && start !== 'batter' && !basesSeen.has(start)) {
+      basesSeen.add(start);
+      runnersOn++;
+      if (start === '2B' || start === '3B') risp = true;
+    }
+  });
+  let runnerFactor = 1.0 + (runnersOn * 0.25) + (risp ? 0.35 : 0);
+
+  // Combine — normalized so typical situations land near 1.0
+  const li = inningFactor * scoreFactor * runnerFactor;
+
+  // Map to 0-100 for the bar. LI of ~3.5+ is "very high" (full bar)
+  const pct = Math.min(100, Math.round((li / 3.5) * 100));
+
+  // Color: green < 0.8, yellow 0.8-1.8, red > 1.8
+  let color;
+  if (li < 0.8) color = 'var(--green)';
+  else if (li < 1.8) color = '#eab308';  // yellow
+  else color = 'var(--red)';
+
+  return { li: li.toFixed(1), pct, color };
+}
+
+// ============================================================
 // RENDER PARTIAL CARD
 // Shows the 'NOW' card for the at-bat currently in progress.
 // numPitches controls how many pitches are visible.
@@ -1174,7 +1305,7 @@ function isRealAtBatResult(play) {
 // isComplete is ONLY true when the user explicitly revealed
 // the result — it never flips automatically on refresh.
 // ============================================================
-function renderPartialCard(play, numPitches, resultRevealed) {
+function renderPartialCard(play, numPitches, resultRevealed, scoreDiff) {
   const allPitches = (play.playEvents || []).filter(e => e.isPitch);
   const shown = allPitches.slice(0, numPitches);
   const hasResult = isRealAtBatResult(play);
@@ -1219,6 +1350,18 @@ function renderPartialCard(play, numPitches, resultRevealed) {
           : h('span', { class: 'in-ab' }, countStr)
     ),
     pitchInfo ? h('div', { class: 'pitcher-line' }, pitchInfo) : null,
+    // Leverage meter — shows how high-stakes this at-bat is
+    (() => {
+      if (scoreDiff === undefined) return null;
+      const lev = computeLeverage(play, scoreDiff);
+      return h('div', { class: 'leverage-wrap' },
+        h('span', { class: 'leverage-label' }, 'leverage'),
+        h('div', { class: 'leverage-bar-wrap' },
+          h('div', { class: 'leverage-bar', style: `width:${lev.pct}%;background:${lev.color}` })
+        ),
+        h('span', { class: 'leverage-val' }, lev.li)
+      );
+    })(),
     isComplete ? h('div', { class: 'desc' }, play.result?.description || '') : null,
     isComplete && (play.result?.rbi > 0 || play.about?.isScoringPlay)
       ? h('div', { class: 'rbi-tag' }, play.result?.rbi > 0 ? `${play.result.rbi} rbi` : 'scoring play')
@@ -1513,13 +1656,38 @@ function renderTracker() {
   } else {
     // Partial at-bat floats at the top
     if (partialPlay && state.partialActive) {
+      // Compute score at the reveal point (spoiler-safe) for leverage calc.
+      // Sum runs from linescore innings before snap + revealed plays after.
+      let liAway = 0, liHome = 0;
+      if (liveData?.innings) {
+        liveData.innings.forEach(inn => {
+          if (inn.num < si || (inn.num === si && sh === 'bottom')) {
+            if (inn.num < si) {
+              liAway += inn.away?.runs || 0;
+              liHome += inn.home?.runs || 0;
+            } else if (inn.away?.runs !== undefined) {
+              liAway += inn.away.runs;  // top of snap inning complete
+            }
+          }
+        });
+      }
+      visible.filter(p => p.about.inning >= si || (p.about.inning === si)).forEach(p => {
+        if (!beforeSnap(p, si, sh)) {
+          if (p.about.halfInning === 'top') liAway += p.result?.runs || 0;
+          else liHome += p.result?.runs || 0;
+        }
+      });
+      // Score diff from the batting team's perspective
+      const battingIsAway = partialPlay.about.halfInning === 'top';
+      const scoreDiff = battingIsAway ? (liAway - liHome) : (liHome - liAway);
+
       feed.append(
         h('div', { class: 'partial-now' },
           h('div', { class: 'partial-label' },
             h('div', { class: 'partial-dot' }),
             `${partialPlay.about.halfInning === 'top' ? '▲' : '▼'} ${ord(partialPlay.about.inning)} inning · now`
           ),
-          renderPartialCard(partialPlay, revealPitches, state.resultRevealed)
+          renderPartialCard(partialPlay, revealPitches, state.resultRevealed, scoreDiff)
         )
       );
     }
