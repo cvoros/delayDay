@@ -511,6 +511,7 @@
     margin-top: 9px;
     padding-top: 9px;
     border-top: 1px solid var(--border);
+    cursor: pointer;
   }
   .leverage-label {
     font-family: var(--mono);
@@ -539,6 +540,53 @@
     min-width: 28px;
     text-align: right;
   }
+
+  /* Leverage chart modal */
+  .lev-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .lev-modal {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    padding: 20px;
+    max-width: 640px;
+    width: 100%;
+    max-height: 85vh;
+    overflow: auto;
+  }
+  .lev-modal-title {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .lev-modal-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    margin-bottom: 16px;
+  }
+  .lev-modal-close {
+    float: right;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .lev-modal-close:hover { border-color: var(--border2); color: var(--text); }
 
   /* Refresh indicator */
   .refresh-bar {
@@ -577,6 +625,7 @@
 </head>
 <body>
 <div class="app" id="app"></div>
+<div id="lev-modal-root"></div>
 <div class="pitch-tooltip" id="pitch-tooltip"></div>
 <div class="refresh-bar" id="refresh-bar" style="display:none">⟳ auto-refresh on</div>
 
@@ -839,7 +888,7 @@ function renderGames() {
 
   app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
     h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
-    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.3.0')
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.3.1')
   );
 
   const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
@@ -1298,6 +1347,110 @@ function computeLeverage(play, scoreDiff) {
 }
 
 // ============================================================
+// SHOW LEVERAGE CHART
+// Opens a modal with an SVG line chart of leverage index
+// across each revealed at-bat. Spoiler-safe — only plots
+// at-bats the user has already seen. Line is color-coded by
+// the same green/yellow/red thresholds as the bar.
+// ============================================================
+function showLeverageChart(visible, si, sh) {
+  // Build the series: leverage for each real at-bat in visible order,
+  // computing a running score so each point's leverage is accurate.
+  const points = [];
+  let awayScore = 0, homeScore = 0;
+
+  // Seed running score from innings before the snap point
+  if (state.liveData?.innings) {
+    state.liveData.innings.forEach(inn => {
+      if (inn.num < si) {
+        awayScore += inn.away?.runs || 0;
+        homeScore += inn.home?.runs || 0;
+      }
+    });
+  }
+
+  visible.forEach(play => {
+    if (!isRealAtBatResult(play)) return;
+    const battingIsAway = play.about.halfInning === 'top';
+    const scoreDiff = battingIsAway ? (awayScore - homeScore) : (homeScore - awayScore);
+    const lev = computeLeverage(play, scoreDiff);
+    points.push({
+      li: parseFloat(lev.li),
+      color: lev.color,
+      batter: displayPlayerName(play.matchup?.batter?.fullName),
+      event: play.result?.event || '',
+      inning: play.about.inning,
+      half: play.about.halfInning,
+    });
+    // Update running score AFTER computing (leverage is measured at start of AB)
+    if (battingIsAway) awayScore += play.result?.runs || 0;
+    else homeScore += play.result?.runs || 0;
+  });
+
+  const root = document.getElementById('lev-modal-root');
+  root.innerHTML = '';
+
+  if (points.length === 0) {
+    // Nothing to chart yet
+    return;
+  }
+
+  // Chart dimensions
+  const W = 600, H = 280, padL = 40, padR = 20, padT = 20, padB = 40;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const maxLI = Math.max(3.5, ...points.map(p => p.li));
+
+  const xFor = (i) => padL + (points.length === 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
+  const yFor = (li) => padT + plotH - (li / maxLI) * plotH;
+
+  // Build SVG
+  const svgParts = [];
+  svgParts.push(`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font-family:var(--mono)">`);
+
+  // Horizontal gridlines at LI = 1, 2, 3
+  [1, 2, 3].forEach(li => {
+    if (li > maxLI) return;
+    const y = yFor(li);
+    svgParts.push(`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#2a3040" stroke-width="1"/>`);
+    svgParts.push(`<text x="${padL-6}" y="${y+3}" fill="#4a5568" font-size="9" text-anchor="end">${li}.0</text>`);
+  });
+
+  // Line path
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i)} ${yFor(p.li)}`).join(' ');
+  svgParts.push(`<path d="${linePath}" fill="none" stroke="#60a5fa" stroke-width="2"/>`);
+
+  // Dots color-coded by leverage
+  points.forEach((p, i) => {
+    const color = p.color === 'var(--green)' ? '#4ade80' : p.color === 'var(--red)' ? '#f87171' : '#eab308';
+    svgParts.push(`<circle cx="${xFor(i)}" cy="${yFor(p.li)}" r="3.5" fill="${color}"/>`);
+  });
+
+  // Inning boundary labels along the x-axis
+  let lastInning = null;
+  points.forEach((p, i) => {
+    const key = `${p.inning}-${p.half}`;
+    if (key !== lastInning) {
+      lastInning = key;
+      const x = xFor(i);
+      svgParts.push(`<text x="${x}" y="${H-padB+16}" fill="#4a5568" font-size="8" text-anchor="middle">${p.half === 'top' ? '▲' : '▼'}${p.inning}</text>`);
+    }
+  });
+
+  svgParts.push('</svg>');
+
+  const modal = h('div', { class: 'lev-modal-backdrop', onClick: (e) => { if (e.target.classList.contains('lev-modal-backdrop')) root.innerHTML = ''; } },
+    h('div', { class: 'lev-modal' },
+      h('button', { class: 'lev-modal-close', onClick: () => { root.innerHTML = ''; } }, 'close'),
+      h('div', { class: 'lev-modal-title' }, 'leverage timeline'),
+      h('div', { class: 'lev-modal-sub' }, `${points.length} at-bats revealed · higher = more decisive`),
+      (() => { const div = h('div', {}); div.innerHTML = svgParts.join(''); return div; })()
+    )
+  );
+  root.append(modal);
+}
+
+// ============================================================
 // RENDER PARTIAL CARD
 // Shows the 'NOW' card for the at-bat currently in progress.
 // numPitches controls how many pitches are visible.
@@ -1305,7 +1458,7 @@ function computeLeverage(play, scoreDiff) {
 // isComplete is ONLY true when the user explicitly revealed
 // the result — it never flips automatically on refresh.
 // ============================================================
-function renderPartialCard(play, numPitches, resultRevealed, scoreDiff) {
+function renderPartialCard(play, numPitches, resultRevealed, scoreDiff, chartCtx) {
   const allPitches = (play.playEvents || []).filter(e => e.isPitch);
   const shown = allPitches.slice(0, numPitches);
   const hasResult = isRealAtBatResult(play);
@@ -1350,11 +1503,12 @@ function renderPartialCard(play, numPitches, resultRevealed, scoreDiff) {
           : h('span', { class: 'in-ab' }, countStr)
     ),
     pitchInfo ? h('div', { class: 'pitcher-line' }, pitchInfo) : null,
-    // Leverage meter — shows how high-stakes this at-bat is
+    // Leverage meter — tap to open the leverage timeline chart
     (() => {
       if (scoreDiff === undefined) return null;
       const lev = computeLeverage(play, scoreDiff);
-      return h('div', { class: 'leverage-wrap' },
+      return h('div', { class: 'leverage-wrap',
+        onClick: chartCtx ? () => showLeverageChart(chartCtx.visible, chartCtx.si, chartCtx.sh) : null },
         h('span', { class: 'leverage-label' }, 'leverage'),
         h('div', { class: 'leverage-bar-wrap' },
           h('div', { class: 'leverage-bar', style: `width:${lev.pct}%;background:${lev.color}` })
@@ -1687,7 +1841,7 @@ function renderTracker() {
             h('div', { class: 'partial-dot' }),
             `${partialPlay.about.halfInning === 'top' ? '▲' : '▼'} ${ord(partialPlay.about.inning)} inning · now`
           ),
-          renderPartialCard(partialPlay, revealPitches, state.resultRevealed, scoreDiff)
+          renderPartialCard(partialPlay, revealPitches, state.resultRevealed, scoreDiff, { visible, si, sh })
         )
       );
     }
