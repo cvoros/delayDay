@@ -43,7 +43,6 @@
     background: var(--bg);
     color: var(--text);
     font-family: var(--sans);
-    font-size: 20px;
     min-height: 100vh;
     padding: 0;
   }
@@ -94,7 +93,7 @@
   }
   .game-card:hover { border-color: var(--border2); background: var(--surface2); }
 
-  .game-teams { font-size: 19px; font-weight: 500; color: var(--text); }
+  .game-teams { font-size: 14px; font-weight: 500; color: var(--text); }
   .game-teams .at { color: var(--dim); font-weight: 400; }
   .game-time { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 
@@ -130,9 +129,9 @@
   }
   .back-btn:hover { color: var(--text); }
 
-  .matchup { font-size: 20px; font-weight: 500; color: var(--text); line-height: 1.4; }
+  .matchup { font-size: 15px; font-weight: 500; color: var(--text); line-height: 1.4; }
   .matchup .at { color: var(--dim); font-weight: 400; }
-  .live-info { font-family: var(--mono); font-size: 14px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .live-info { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .live-dot { color: var(--red); }
 
   .show-score-btn {
@@ -172,11 +171,11 @@
     overflow: hidden;
   }
   .half-btn {
-    padding: 9px 15px;
+    padding: 7px 13px;
     border: none;
     background: transparent;
     font-family: var(--mono);
-    font-size: 14px;
+    font-size: 12px;
     color: var(--muted);
     cursor: pointer;
     transition: background 0.12s, color 0.12s;
@@ -217,7 +216,7 @@
     min-width: 32px;
     text-align: center;
   }
-  .inn-label { font-family: var(--mono); font-size: 15px; color: var(--muted); }
+  .inn-label { font-family: var(--mono); font-size: 13px; color: var(--muted); }
 
   .snap-footer { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 
@@ -228,9 +227,9 @@
     background: none;
     border: 1px solid var(--border);
     border-radius: 7px;
-    padding: 10px 16px;
+    padding: 8px 14px;
     font-family: var(--mono);
-    font-size: 15px;
+    font-size: 12px;
     color: var(--text);
     cursor: pointer;
     display: inline-flex;
@@ -242,7 +241,7 @@
   .reveal-btn.secondary { color: var(--muted); }
   .reveal-btn .ahead { color: var(--dim); font-size: 10px; }
 
-  .caught-up { font-family: var(--mono); font-size: 14px; color: #4ade80; }
+  .caught-up { font-family: var(--mono); font-size: 12px; color: #4ade80; }
 
   /* Partial at-bat card */
   .partial-now {
@@ -270,7 +269,7 @@
     border-color: rgba(96,165,250,0.3);
     background: rgba(96,165,250,0.04);
   }
-  .in-ab { font-family: var(--mono); font-size: 14px; color: var(--blue); }
+  .in-ab { font-family: var(--mono); font-size: 11px; color: var(--blue); }
 
   /* Feed */
   .feed { }
@@ -301,11 +300,11 @@
     gap: 8px;
     margin-bottom: 3px;
   }
-  .batter { font-size: 18px; font-weight: 500; color: var(--text); }
-  .event { font-family: var(--mono); font-size: 17px; font-weight: 600; }
-  .pitcher-line { font-size: 13px; color: var(--dim); margin-bottom: 4px; }
-  .desc { font-size: 16px; color: var(--muted); line-height: 1.5; }
-  .rbi-tag { margin-top: 5px; font-family: var(--mono); font-size: 13px; color: var(--amber); }
+  .batter { font-size: 13px; font-weight: 500; color: var(--text); }
+  .event { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+  .pitcher-line { font-size: 11px; color: var(--dim); margin-bottom: 4px; }
+  .desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .rbi-tag { margin-top: 5px; font-family: var(--mono); font-size: 11px; color: var(--amber); }
 
   /* Pitch sequence */
   .pitch-seq {
@@ -331,8 +330,8 @@
     position: relative;
     min-width: 36px;
   }
-  .pitch-type { font-size: 13px; font-weight: 600; line-height: 1.2; }
-  .pitch-velo { font-size: 12px; line-height: 1.1; opacity: 0.8; }
+  .pitch-type { font-size: 11px; font-weight: 600; line-height: 1.2; }
+  .pitch-velo { font-size: 10px; line-height: 1.1; opacity: 0.8; }
 
   /* call colors */
   .p-ball    { border-color: rgba(96,165,250,0.35); color: #60a5fa; background: rgba(96,165,250,0.07); }
@@ -398,7 +397,7 @@
   }
   .lineup-team {
     font-family: var(--mono);
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--text);
   }
@@ -423,7 +422,7 @@
     border-right: 1px solid var(--border);
   }
   .rhe-item:last-child { border-right: none; }
-  .rhe-val { font-family: var(--mono); font-size: 20px; font-weight: 600; color: var(--text); line-height: 1; }
+  .rhe-val { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--text); line-height: 1; }
   .rhe-lbl { font-family: var(--mono); font-size: 9px; color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; }
 
   .lineup-row {
@@ -444,11 +443,11 @@
   .lineup-row.ondeck { opacity: 0.65; }
   .lineup-row.upcoming { opacity: 0.35; }
 
-  .lr-num { font-family: var(--mono); font-size: 12px; color: var(--dim); text-align: right; }
-  .lr-pos { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-  .lr-name { color: var(--text); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lr-num { font-family: var(--mono); font-size: 10px; color: var(--dim); text-align: right; }
+  .lr-pos { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .lr-name { color: var(--text); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .lr-name.is-current { color: #60a5fa; font-weight: 500; }
-  .lr-stat { font-family: var(--mono); font-size: 12px; color: var(--dim); white-space: nowrap; }
+  .lr-stat { font-family: var(--mono); font-size: 10px; color: var(--dim); white-space: nowrap; }
   .lr-stat.has-hit { color: var(--green); }
   .lr-stat.has-hr  { color: var(--amber); }
 
@@ -888,7 +887,7 @@ function renderGames() {
 
   app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
     h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
-    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.3.1')
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.3.2')
   );
 
   const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
