@@ -5,6 +5,32 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.3.1] - 2026-06-10
+### Added
+- Tappable leverage timeline chart. Tapping the leverage bar on the NOW card opens a modal with an SVG line chart of leverage index across every revealed at-bat, color-coded green/yellow/red, with gridlines and inning markers. Spoiler-safe — only plots at-bats already seen.
+
+---
+
+## [0.3.0] - 2026-06-10
+### Added
+- Leverage meter on the partial (NOW) card. Color-coded bar (green/yellow/red) showing how high-stakes the current at-bat is, computed from inning, score differential, base runners, and outs. Uses the reveal-point score so it stays spoiler-safe.
+### Fixed
+- Two-way players (e.g. Ohtani) showing blank ERA. Added fallback that fetches pitching stats directly from the people/stats API when the boxscore only populates batting stats, with caching to avoid repeat calls.
+
+---
+
+## [0.2.6] - 2026-04-23
+### Changed
+- Moved pitcher panel to full width above the two-column grid so it's never squeezed or hidden in landscape mode.
+
+---
+
+## [0.2.5] - 2026-04-23
+### Fixed
+- Layout breakpoints reworked into three zones: portrait phones (≤600px) single column, landscape phones (601-900px) two columns with narrow left panel, tablet/desktop (>900px) two columns with wider left panel.
+
+---
+
 ## [0.2.4] - 2026-04-23
 ### Fixed
 - Pitcher panel and lineup panel disappearing in landscape mode on iPhone. Bumped mobile breakpoint from 580px to 768px so all iPhones in both orientations use the single-column layout.
