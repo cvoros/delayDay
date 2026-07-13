@@ -887,7 +887,7 @@ function renderGames() {
 
   app.append(h('div', { class: 'logo' }, 'delay', h('span', {}, 'Day')),
     h('div', { class: 'tagline' }, 'spoiler-free game tracker'),
-    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.3.2')
+    h('div', { style: 'font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:1.5rem;' }, 'v0.3.3')
   );
 
   const dateToggle = h('div', { style: 'display:flex;gap:7px;margin-bottom:1.25rem;' },
@@ -1352,7 +1352,7 @@ function computeLeverage(play, scoreDiff) {
 // at-bats the user has already seen. Line is color-coded by
 // the same green/yellow/red thresholds as the bar.
 // ============================================================
-function showLeverageChart(visible, si, sh) {
+function showLeverageChart(visible, si, sh, partialPlay, partialScoreDiff) {
   // Build the series: leverage for each real at-bat in visible order,
   // computing a running score so each point's leverage is accurate.
   const points = [];
@@ -1385,6 +1385,21 @@ function showLeverageChart(visible, si, sh) {
     if (battingIsAway) awayScore += play.result?.runs || 0;
     else homeScore += play.result?.runs || 0;
   });
+
+  // Append the current partial batter as the final point, using the exact
+  // same scoreDiff the card uses — so the chart's last point matches the bar.
+  if (partialPlay && partialScoreDiff !== undefined) {
+    const lev = computeLeverage(partialPlay, partialScoreDiff);
+    points.push({
+      li: parseFloat(lev.li),
+      color: lev.color,
+      batter: displayPlayerName(partialPlay.matchup?.batter?.fullName),
+      event: 'now',
+      inning: partialPlay.about.inning,
+      half: partialPlay.about.halfInning,
+      isCurrent: true,
+    });
+  }
 
   const root = document.getElementById('lev-modal-root');
   root.innerHTML = '';
@@ -1419,10 +1434,15 @@ function showLeverageChart(visible, si, sh) {
   const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i)} ${yFor(p.li)}`).join(' ');
   svgParts.push(`<path d="${linePath}" fill="none" stroke="#60a5fa" stroke-width="2"/>`);
 
-  // Dots color-coded by leverage
+  // Dots color-coded by leverage; current point is larger with a ring
   points.forEach((p, i) => {
     const color = p.color === 'var(--green)' ? '#4ade80' : p.color === 'var(--red)' ? '#f87171' : '#eab308';
-    svgParts.push(`<circle cx="${xFor(i)}" cy="${yFor(p.li)}" r="3.5" fill="${color}"/>`);
+    if (p.isCurrent) {
+      svgParts.push(`<circle cx="${xFor(i)}" cy="${yFor(p.li)}" r="6" fill="none" stroke="${color}" stroke-width="2"/>`);
+      svgParts.push(`<circle cx="${xFor(i)}" cy="${yFor(p.li)}" r="3" fill="${color}"/>`);
+    } else {
+      svgParts.push(`<circle cx="${xFor(i)}" cy="${yFor(p.li)}" r="3.5" fill="${color}"/>`);
+    }
   });
 
   // Inning boundary labels along the x-axis
@@ -1507,7 +1527,7 @@ function renderPartialCard(play, numPitches, resultRevealed, scoreDiff, chartCtx
       if (scoreDiff === undefined) return null;
       const lev = computeLeverage(play, scoreDiff);
       return h('div', { class: 'leverage-wrap',
-        onClick: chartCtx ? () => showLeverageChart(chartCtx.visible, chartCtx.si, chartCtx.sh) : null },
+        onClick: chartCtx ? () => showLeverageChart(chartCtx.visible, chartCtx.si, chartCtx.sh, chartCtx.partialPlay, chartCtx.partialScoreDiff) : null },
         h('span', { class: 'leverage-label' }, 'leverage'),
         h('div', { class: 'leverage-bar-wrap' },
           h('div', { class: 'leverage-bar', style: `width:${lev.pct}%;background:${lev.color}` })
@@ -1840,7 +1860,7 @@ function renderTracker() {
             h('div', { class: 'partial-dot' }),
             `${partialPlay.about.halfInning === 'top' ? '▲' : '▼'} ${ord(partialPlay.about.inning)} inning · now`
           ),
-          renderPartialCard(partialPlay, revealPitches, state.resultRevealed, scoreDiff, { visible, si, sh })
+          renderPartialCard(partialPlay, revealPitches, state.resultRevealed, scoreDiff, { visible, si, sh, partialPlay, partialScoreDiff: scoreDiff })
         )
       );
     }
